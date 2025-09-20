@@ -1,0 +1,6 @@
+<!DOCTYPE html><html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ساخت انجام شد</title>
+<link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/></head><body>
+<div class="header"><h1>ساخت انجام شد</h1><a th:href="@{/projects}">بازگشت</a></div>
+<div class="container"><p>پروژه در مسیر زیر ساخته شد:</p><p><code th:text="${path}">/path</code></p>
+<p><a class="btn" th:href="@{'/generate/' + ${project.id} + '/zip'}">دانلود ZIP</a></p></div></body></html>

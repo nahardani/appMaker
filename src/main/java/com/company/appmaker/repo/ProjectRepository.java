@@ -1,0 +1,1 @@
+package com.company.appmaker.repo; import org.springframework.data.mongodb.repository.MongoRepository; import com.company.appmaker.model.Project; public interface ProjectRepository extends MongoRepository<Project,String>{}

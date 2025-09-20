@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ورود</title>
+<link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/></head><body>
+<div class="header"><h1>AppMaker — ورود</h1></div>
+<div class="container"><form th:action="@{/login}" method="post">
+<label>نام کاربری</label><input type="text" name="username" placeholder="admin" required>
+<label>رمز عبور</label><input type="password" name="password" placeholder="admin123" required>
+<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/><button type="submit">ورود</button></form>
+<p class="help">نام کاربری: <b>admin</b> — رمز: <b>admin123</b> (فقط برای دمو)</p>
+<div th:if="${param.error}"><span class="badge">ورود ناموفق</span></div>
+<div th:if="${param.logout}"><span class="badge">خروج انجام شد</span></div></div></body></html>
