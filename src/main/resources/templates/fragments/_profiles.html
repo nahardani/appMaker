@@ -1,0 +1,124 @@
+<!-- templates/fragments/_profiles.html -->
+<div th:fragment="profiles(project, profilesForm, form)">
+    <div class="card">
+        <div class="card-head"><h3>تنظیمات پروفایل‌ها (dev / test / prod)</h3></div>
+
+        <form class="form"
+              th:object="${profilesForm}"
+              th:action="@{'/wizard/' + ${project.id} + '/settings/profiles'}"
+              method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" name="ctrl" th:value="${form != null ? form.name : null}"/>
+            <input type="hidden" name="ep"   th:value="${form != null ? form.endpointIndex : null}"/>
+
+            <!-- پیش‌فرض فعال -->
+            <div class="grid-1">
+                <div>
+                    <label>پروفایل فعالِ پیش‌فرض (default)</label>
+                    <select th:field="*{defaultActive}">
+                        <option value="dev">dev</option>
+                        <option value="test">test</option>
+                        <option value="prod">prod</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- DEV -->
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>dev</h4>
+            <div class="grid-3">
+                <div>
+                    <label>server.port</label>
+                    <input type="number" th:field="*{devServerPort}" placeholder="8080"/>
+                </div>
+                <div>
+                    <label>logging.level.root</label>
+                    <select th:field="*{devLoggingLevelRoot}">
+                        <option value="">(پیش‌فرض)</option>
+                        <option value="TRACE">TRACE</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                </div>
+                <div>
+                    <label>spring.profiles.include (CSV)</label>
+                    <input type="text" th:field="*{devIncludesCsv}" placeholder="common, local"/>
+                </div>
+            </div>
+            <div class="grid-1">
+                <div>
+                    <label>پراپرتی‌های اضافه (YAML)</label>
+                    <textarea th:field="*{devExtraYaml}" placeholder="custom:\n  key: value"></textarea>
+                </div>
+            </div>
+
+            <!-- TEST -->
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>test</h4>
+            <div class="grid-3">
+                <div>
+                    <label>server.port</label>
+                    <input type="number" th:field="*{testServerPort}" placeholder="8081"/>
+                </div>
+                <div>
+                    <label>logging.level.root</label>
+                    <select th:field="*{testLoggingLevelRoot}">
+                        <option value="">(پیش‌فرض)</option>
+                        <option value="TRACE">TRACE</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                </div>
+                <div>
+                    <label>spring.profiles.include (CSV)</label>
+                    <input type="text" th:field="*{testIncludesCsv}" placeholder="common"/>
+                </div>
+            </div>
+            <div class="grid-1">
+                <div>
+                    <label>پراپرتی‌های اضافه (YAML)</label>
+                    <textarea th:field="*{testExtraYaml}" placeholder="..."></textarea>
+                </div>
+            </div>
+
+            <!-- PROD -->
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>prod</h4>
+            <div class="grid-3">
+                <div>
+                    <label>server.port</label>
+                    <input type="number" th:field="*{prodServerPort}" placeholder="8082"/>
+                </div>
+                <div>
+                    <label>logging.level.root</label>
+                    <select th:field="*{prodLoggingLevelRoot}">
+                        <option value="">(پیش‌فرض)</option>
+                        <option value="TRACE">TRACE</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                </div>
+                <div>
+                    <label>spring.profiles.include (CSV)</label>
+                    <input type="text" th:field="*{prodIncludesCsv}" placeholder="common"/>
+                </div>
+            </div>
+            <div class="grid-1">
+                <div>
+                    <label>پراپرتی‌های اضافه (YAML)</label>
+                    <textarea th:field="*{prodExtraYaml}" placeholder="..."></textarea>
+                </div>
+            </div>
+
+            <div class="actions" style="justify-content:flex-end; margin-top:8px;">
+                <button type="submit" class="btn btn-primary">ذخیرهٔ پروفایل‌ها</button>
+            </div>
+        </form>
+    </div>
+</div>

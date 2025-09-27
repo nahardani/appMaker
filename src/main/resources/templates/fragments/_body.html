@@ -1,0 +1,38 @@
+<!— fragments/_body.html —>
+<section th:fragment="body(project, form)">
+    <div class="card" th:if="${form.editing}">
+        <div class="card-head">
+            <h3>بدنهٔ درخواست (Body)</h3>
+            <span class="muted">فقط برای متد POST</span>
+        </div>
+
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/controllers/body'}"
+              th:object="${form}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{name}"/>
+            <input type="hidden" th:field="*{endpointIndex}"/>
+
+            <div id="bodyCardInner">
+                <div class="actions" style="margin-bottom:8px;">
+                    <button type="button" class="btn" onclick="openReqModal()">ویرایش فیلدهای بدنه…</button>
+                    <button type="button" class="btn btn-secondary" onclick="addBodyFieldAndOpen()">+ افزودن فیلد</button>
+                </div>
+
+                <div id="hiddenRequest">
+                    <th:block th:each="f, iStat : *{requestFields}">
+                        <input type="hidden" th:name="${'requestFields['+iStat.index+'].name'}"     th:value="${f.name}"/>
+                        <input type="hidden" th:name="${'requestFields['+iStat.index+'].javaType'}" th:value="${f.javaType}"/>
+                        <input type="hidden" th:name="${'requestFields['+iStat.index+'].required'}" th:value="${f.required}"/>
+                    </th:block>
+                </div>
+
+                <div id="reqPreview" class="muted"></div>
+            </div>
+
+            <div class="right">
+                <button type="submit" class="btn btn-primary">ذخیره بدنه</button>
+            </div>
+        </form>
+    </div>
+</section>

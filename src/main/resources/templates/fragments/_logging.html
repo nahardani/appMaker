@@ -1,0 +1,49 @@
+<!— Logging —>
+<div th:fragment="logging(project)">
+    <div class="card">
+        <div class="card-head"><h3>تنظیمات Logging</h3></div>
+
+        <form class="form" th:action="@{'/wizard/' + ${project.id} + '/settings/logging'}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <div class="grid-3">
+                <div>
+                    <label>Log Level پیش‌فرض</label>
+                    <select name="log.level">
+                        <option>ERROR</option><option>WARN</option><option>INFO</option><option>DEBUG</option><option>TRACE</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Pattern</label>
+                    <input type="text" name="log.pattern" placeholder="%d{ISO8601} %-5level [%thread] %logger - %msg%n"/>
+                </div>
+                <div>
+                    <label>Appender</label>
+                    <select name="log.appender">
+                        <option value="CONSOLE">Console</option>
+                        <option value="FILE">File</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div>
+                    <label>File Path (در صورت File)</label>
+                    <input type="text" name="log.file.path" placeholder="logs/app.log"/>
+                </div>
+                <div>
+                    <label>Rolling Policy</label>
+                    <input type="text" name="log.rolling" placeholder="size:10MB;history:7"/>
+                </div>
+                <div>
+                    <label>Loggerهای اختصاصی (package → level)</label>
+                    <textarea name="log.custom" placeholder="com.company=DEBUG&#10;org.springframework=WARN"></textarea>
+                </div>
+            </div>
+
+            <div class="actions" style="justify-content:flex-end">
+                <button class="btn btn-primary" type="submit">ذخیره Logging</button>
+            </div>
+        </form>
+    </div>
+</div>

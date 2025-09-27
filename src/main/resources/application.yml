@@ -6,6 +6,6 @@ spring:
       uri: ${MONGO_URI:mongodb://localhost:27017/appmaker}
 server:
   port: 8080
-logging:
-  level:
-    root: debug
+#logging:
+#  level:
+#    root: debug

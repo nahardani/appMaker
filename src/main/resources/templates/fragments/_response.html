@@ -1,0 +1,54 @@
+<!— fragments/_response.html —>
+<section th:fragment="response(project, form)">
+    <div class="card" th:if="${form.editing}">
+        <div class="card-head">
+            <h3>پاسخ (Response)</h3>
+            <span class="muted">می‌توانید چند «بخش پاسخ» اضافه کنید؛ هر بخش می‌تواند Single/List و Scalar/OBJECT باشد.</span>
+        </div>
+
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/controllers/response'}"
+              th:object="${form}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{name}"/>
+            <input type="hidden" th:field="*{endpointIndex}"/>
+
+            <table class="table" id="respPartsTable">
+                <thead>
+                <tr>
+                    <th>نام بخش</th>
+                    <th>ظرف (SINGLE/LIST)</th>
+                    <th>نوع (SCALAR/OBJECT)</th>
+                    <th style="min-width:240px">نوع اسکالر / نام مدل</th>
+                    <th style="min-width:180px">فیلدهای Object</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody><!-- با JS از hidden بازسازی می‌شود --></tbody>
+            </table>
+
+            <div id="hiddenResponseParts">
+                <th:block th:each="rp, iStat : *{responseParts}">
+                    <input type="hidden" th:name="${'responseParts['+iStat.index+'].name'}"      th:value="${rp.name}"/>
+                    <input type="hidden" th:name="${'responseParts['+iStat.index+'].container'}" th:value="${rp.container}"/>
+                    <input type="hidden" th:name="${'responseParts['+iStat.index+'].kind'}"      th:value="${rp.kind}"/>
+                    <input type="hidden" th:if="${rp.kind == 'SCALAR'}"
+                           th:name="${'responseParts['+iStat.index+'].scalarType'}" th:value="${rp.scalarType}"/>
+                    <input type="hidden" th:if="${rp.kind == 'OBJECT'}"
+                           th:name="${'responseParts['+iStat.index+'].objectName'}" th:value="${rp.objectName}"/>
+                    <th:block th:if="${rp.fields != null}" th:each="ff, jStat : ${rp.fields}">
+                        <input type="hidden" th:name="${'responseParts['+iStat.index+'].fields['+jStat.index+'].name'}"     th:value="${ff.name}"/>
+                        <input type="hidden" th:name="${'responseParts['+iStat.index+'].fields['+jStat.index+'].javaType'}" th:value="${ff.javaType}"/>
+                        <input type="hidden" th:name="${'responseParts['+iStat.index+'].fields['+jStat.index+'].required'}" th:value="${ff.required}"/>
+                    </th:block>
+                </th:block>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-secondary" type="button" onclick="addResponsePart()">+ افزودن بخش پاسخ</button>
+                <div class="spacer"></div>
+                <button type="submit" class="btn btn-primary">ذخیره پاسخ</button>
+            </div>
+        </form>
+    </div>
+</section>

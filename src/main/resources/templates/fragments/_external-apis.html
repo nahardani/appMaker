@@ -1,0 +1,25 @@
+<!— External APIs —>
+<div th:fragment="externalApis(project)">
+    <div class="card">
+        <div class="card-head"><h3>وابستگی‌ها / APIهای خارجی</h3></div>
+
+        <form class="form" th:action="@{'/wizard/' + ${project.id} + '/settings/external-apis'}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <table class="table" id="extApisTable">
+                <thead>
+                <tr>
+                    <th>نام سرویس</th><th>Base URL</th><th>Auth</th><th>Timeout(ms)</th><th>Rate Limit (RPS)</th><th></th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <div class="actions">
+                <button class="btn btn-secondary" type="button" onclick="addExtApiRow()">+ افزودن API</button>
+                <div class="spacer"></div>
+                <button class="btn btn-primary" type="submit">ذخیره APIها</button>
+            </div>
+        </form>
+    </div>
+</div>

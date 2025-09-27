@@ -1,0 +1,25 @@
+<!— Stored Procedures —>
+<div th:fragment="storedProcedures(project)">
+    <div class="card">
+        <div class="card-head"><h3>Stored Procedures</h3></div>
+
+        <form class="form" th:action="@{'/wizard/' + ${project.id} + '/settings/stored-procedures'}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <table class="table" id="spTable">
+                <thead>
+                <tr>
+                    <th>نام SP</th><th>ورودی‌ها</th><th>خروجی‌ها</th><th>Cursor ها</th><th>DTO Mapping</th><th></th>
+                </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <div class="actions">
+                <button class="btn btn-secondary" type="button" onclick="addSpRow()">+ افزودن SP</button>
+                <div class="spacer"></div>
+                <button class="btn btn-primary" type="submit">ذخیره SPها</button>
+            </div>
+        </form>
+    </div>
+</div>

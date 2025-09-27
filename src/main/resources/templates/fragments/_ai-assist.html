@@ -1,0 +1,67 @@
+<!-- fragments/_ai-assist.html -->
+<div th:fragment="aiAssist(project, form)">
+    <div class="card">
+        <div class="card-head">
+            <h3>دستیار هوش مصنوعی (Ollama)</h3>
+            <span class="muted">با نوشتن منطق، کد کنترلر/سرویس/DTO تولید می‌شود.</span>
+        </div>
+
+        <form class="form" onsubmit="return false;">
+            <div class="grid-3">
+                <div>
+                    <label>مدل</label>
+                    <select id="aiModel">
+                        <option>llama3:8b</option>
+                        <option>gpt-oss:120b</option>
+                        <option>codellama</option>
+                        <option>phi3</option>
+                    </select>
+                </div>
+                <div>
+                    <label>نام کنترلر هدف</label>
+                    <input id="aiControllerName" type="text"
+                           th:value="${form != null ? form.name : ''}"
+                           placeholder="OrderController"/>
+                </div>
+                <div>
+                    <label>Base Path (اختیاری)</label>
+                    <input id="aiBasePath" type="text"
+                           th:value="${form != null ? form.basePath : ''}"
+                           placeholder="/api/orders"/>
+                </div>
+            </div>
+
+            <div class="grid-1">
+                <div>
+                    <label>توضیح نیازمندی/منطق</label>
+                    <textarea id="aiPrompt" placeholder="مثلاً: سرویس ایجاد سفارش؛ ورودی OrderCreateDto و خروجی شناسه ایجادشده."></textarea>
+                </div>
+            </div>
+
+            <div class="actions" style="justify-content: flex-end;">
+                <button class="btn" type="button" onclick="aiPreview()">پیش‌نمایش طرح</button>
+                <button class="btn btn-primary" type="button" onclick="aiGenerate()">تولید کد</button>
+            </div>
+        </form>
+
+        <div id="aiResult" class="card" style="margin-top:12px; display:none;">
+            <h4 style="margin:0 0 8px;">نتیجه / طرح</h4>
+            <pre id="aiPlan" class="empty" style="white-space:pre-wrap;direction:ltr;"></pre>
+
+            <h4 style="margin:12px 0 8px;">فایل‌ها</h4>
+            <div id="aiFiles"></div>
+
+            <div class="actions" style="justify-content:flex-end; margin-top:12px;">
+                <form id="aiApplyForm"
+                      th:action="@{'/wizard/' + ${project.id} + '/ai/apply'}"
+                      method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="controllerName" th:value="${form != null ? form.name : ''}"/>
+                    <input type="hidden" name="basePath" th:value="${form != null ? form.basePath : ''}"/>
+                    <input type="hidden" name="payload" id="aiApplyPayload"/>
+                    <button class="btn btn-primary" type="submit">اعمال به پروژه</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

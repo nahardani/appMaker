@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <title>گام ۴ — کنترلر / Endpoint</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <link rel="stylesheet" th:href="@{/css/wizard-controllers.css}"/>
+</head>
+<body>
+<div class="container">
+
+    <!-- هدر -->
+    <th:block th:replace="~{fragments/_header :: header(project=${project})}"></th:block>
+
+    <div class="layout">
+        <!-- سایدبار کنترلرها -->
+        <aside class="side"
+               th:replace="~{fragments/_sidebar-controllers :: sidebar(project=${project})}"></aside>
+
+        <!-- ستون راست: باکس‌ها -->
+        <main class="main">
+            <!-- باکس ۱: متای کنترلر (برای ساخت/ویرایش همیشه رندر می‌شود) -->
+            <section th:replace="~{fragments/_controller-meta :: meta(
+                    project=${project},
+                    form=${form},
+                    types=${types},
+                    httpMethods=${httpMethods}
+            )}"></section>
+
+            <!-- هشدار: اگر هنوز کنترلر ذخیره/انتخاب نشده -->
+            <div class="alert" th:if="${form != null ? !form.editing : true}">
+                ابتدا «اطلاعات کنترلر» را ذخیره کنید؛ سپس باکس‌های دیگر فعال می‌شوند.
+            </div>
+
+            <!-- باکس‌های وابسته به حالت ویرایش کنترلر -->
+            <th:block th:if="${form != null and form.editing}">
+                <!-- Endpoint -->
+                <section th:replace="~{fragments/_endpoint :: endpoint(project=${project}, form=${form})}"></section>
+
+                <!-- پارامترها -->
+                <section th:replace="~{fragments/_params :: params(
+                        project=${project},
+                        form=${form},
+                        paramLocations=${paramLocations},
+                        javaTypes=${javaTypes}
+                )}"></section>
+
+                <!-- Body -->
+                <section th:replace="~{fragments/_body :: body(project=${project}, form=${form})}"></section>
+
+                <!-- Response -->
+                <section th:replace="~{fragments/_response :: response(project=${project}, form=${form})}"></section>
+
+                <!-- امنیت -->
+<!--                <section th:replace="~{fragments/_security :: security(project=${project}, securityForm=${securityForm})}"></section>-->
+                <section th:if="${form != null and form.editing}"
+                         th:replace="~{fragments/_security :: security(project=${project}, securityForm=${securityForm}, form=${form})}">
+                </section>
+
+
+                <section th:if="${form != null and form.editing}"
+                         th:replace="~{fragments/_swagger :: swagger(project=${project}, swaggerForm=${swaggerForm}, form=${form})}">
+                </section>
+
+
+                <section th:if="${form != null and form.editing}"
+                         th:replace="~{fragments/_profiles :: profiles(project=${project}, profilesForm=${profilesForm}, form=${form})}">
+                </section>
+
+
+                <section th:if="${form != null and form.editing}"
+                         th:replace="~{fragments/_i18n :: i18n(project=${project}, i18nForm=${i18nForm}, form=${form})}">
+                </section>
+
+
+                <!-- constants / properties -->
+                <section th:replace="~{fragments/_constants :: constants(project=${project})}"></section>
+
+                <!-- دیتابیس -->
+                <section th:replace="~{fragments/_datasource :: datasource(project=${project})}"></section>
+
+                <!-- وابستگی‌ها / APIهای خارجی -->
+                <section th:replace="~{fragments/_external-apis :: externalApis(project=${project})}"></section>
+
+                <!-- Stored Procedures -->
+                <section th:replace="~{fragments/_stored-procedures :: storedProcedures(project=${project})}"></section>
+
+                <!-- Logging -->
+                <section th:replace="~{fragments/_logging :: logging(project=${project})}"></section>
+
+                <!-- مسیر خروجی پروژه -->
+                <section th:replace="~{fragments/_output-path :: outputPath(project=${project})}"></section>
+
+                <section th:if="${form != null and form.editing}"
+                         th:replace="~{fragments/_ai-assist :: aiAssist(project=${project}, form=${form})}">
+                </section>
+
+                <!-- دکمه‌های ناوبری گام‌ها (پایین صفحه) -->
+                <th:block th:if="${form != null and form.editing}">
+                    <div class="card" style="margin-top:12px;">
+                        <div class="actions" style="justify-content:flex-end; gap:8px;">
+                            <a class="btn btn-secondary"
+                               th:href="@{'/wizard/' + ${project.id} + '/packages'}">← بازگشت به گام پکیج‌ها</a>
+
+                            <a class="btn btn-primary"
+                               th:href="@{'/wizard/' + ${project.id} + '/final'}">ادامه → گام نهایی</a>
+                        </div>
+                    </div>
+                </th:block>
+
+
+            </th:block>
+        </main>
+    </div>
+</div>
+
+<!-- مودال‌ها و قالب‌های پنهان -->
+<th:block th:replace="~{fragments/_modals :: modals}"></th:block>
+<th:block th:replace="~{fragments/_templates-hidden :: hiddenTemplates}"></th:block>
+
+<script th:src="@{/js/wizard-controllers.js?v=10}"></script>
+</body>
+</html>

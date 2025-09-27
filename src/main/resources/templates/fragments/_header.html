@@ -1,0 +1,17 @@
+<!— fragments/_header.html —>
+<div th:fragment="header(project)">
+    <div class="header">
+        <div>
+            <h1>گام ۴ — کنترلر / Endpoint</h1>
+            <div class="muted">
+        <span th:if="${project != null}"
+              th:text="${project.projectName + ' • ' + project.companyName}">Project • Company</span>
+                <span th:unless="${project != null}">—</span>
+            </div>
+        </div>
+        <div class="actions">
+            <a th:href="@{/projects}" class="btn">فهرست پروژه‌ها</a>
+            <a th:href="@{'/wizard/' + ${project.id} + '/packages'}" class="btn btn-secondary">← بازگشت</a>
+        </div>
+    </div>
+</div>

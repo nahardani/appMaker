@@ -1,0 +1,146 @@
+<!-- templates/fragments/_security.html -->
+<div th:fragment="security(project, securityForm, form)">
+    <div class="card">
+        <div class="card-head"><h3>تنظیمات امنیت / احراز هویت</h3></div>
+
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/settings/security?ctrl=' + ${form.name} + '&ep=' + ${form.endpointIndex}}"
+              th:object="${securityForm}"
+              method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <div class="grid-3">
+                <div>
+                    <label>نوع احراز هویت</label>
+                    <select th:field="*{authType}" id="authTypeSelect"
+                            onchange="if(window.onAuthTypeChange){onAuthTypeChange(this.value);}">
+                        <option value="NONE">بدون احراز هویت</option>
+                        <option value="BASIC">Basic</option>
+                        <option value="BEARER">Bearer Token</option>
+                        <option value="JWT">JWT</option>
+                        <option value="OAUTH2">OAuth2</option>
+                    </select>
+                </div>
+                <div>
+                    <label>—</label>
+                    <div class="muted">با تغییر نوع، فیلدهای مرتبط در همین‌جا ظاهر می‌شوند.</div>
+                </div>
+                <div></div>
+            </div>
+
+            <!-- BASIC -->
+            <div class="grid-3 auth-block"
+                 data-auth="BASIC"
+                 th:classappend="${securityForm != null and securityForm.authType == 'BASIC'} ? '' : ' hidden'">
+                <div>
+                    <label>Username</label>
+                    <input type="text" th:field="*{basicUsername}" placeholder="user"/>
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input type="password" th:field="*{basicPassword}" placeholder="********"/>
+                </div>
+                <div></div>
+            </div>
+
+            <!-- BEARER -->
+            <div class="grid-2 auth-block"
+                 data-auth="BEARER"
+                 th:classappend="${securityForm != null and securityForm.authType == 'BEARER'} ? '' : ' hidden'">
+                <div>
+                    <label>Bearer Token</label>
+                    <input type="text" th:field="*{bearerToken}" placeholder="eyJhbGciOi..." />
+                    <div class="muted">توکن ثابت برای Authorization: Bearer &lt;token&gt;</div>
+                </div>
+            </div>
+
+            <!-- JWT -->
+            <div class="grid-3 auth-block"
+                 data-auth="JWT"
+                 th:classappend="${securityForm != null and securityForm.authType == 'JWT'} ? '' : ' hidden'">
+                <div>
+                    <label>Secret</label>
+                    <input type="text" th:field="*{jwtSecret}" placeholder="very-secret-key"/>
+                </div>
+                <div>
+                    <label>Issuer</label>
+                    <input type="text" th:field="*{jwtIssuer}" placeholder="https://issuer.example"/>
+                </div>
+                <div>
+                    <label>Audience</label>
+                    <input type="text" th:field="*{jwtAudience}" placeholder="app-audience"/>
+                </div>
+                <div>
+                    <label>Expiration (seconds)</label>
+                    <input type="number" th:field="*{jwtExpirationSeconds}" placeholder="3600" min="1"/>
+                </div>
+            </div>
+
+            <!-- OAUTH2 -->
+            <div class="grid-3 auth-block"
+                 data-auth="OAUTH2"
+                 th:classappend="${securityForm != null and securityForm.authType == 'OAUTH2'} ? '' : ' hidden'">
+                <div>
+                    <label>Client ID</label>
+                    <input type="text" th:field="*{oauth2ClientId}" placeholder="client-id"/>
+                </div>
+                <div>
+                    <label>Client Secret</label>
+                    <input type="text" th:field="*{oauth2ClientSecret}" placeholder="client-secret"/>
+                </div>
+                <div>
+                    <label>Issuer</label>
+                    <input type="text" th:field="*{oauth2Issuer}" placeholder="https://issuer.example"/>
+                </div>
+                <div class="grid-1" style="grid-column: 1 / -1">
+                    <label>Scopes</label>
+                    <input type="text"
+                           th:value="${securityForm != null and !#lists.isEmpty(securityForm.oauth2Scopes) ? #strings.listJoin(securityForm.oauth2Scopes, ',') : ''}"
+                           name="oauth2ScopesCsv"
+                           placeholder="openid,profile,email"/>
+                    <div class="muted">CSV؛ در ذخیره‌سازی به لیست تبدیل می‌شود.</div>
+                </div>
+            </div>
+
+            <div class="hr"></div>
+            <h4>نقش‌ها</h4>
+            <table class="table" id="rolesTable">
+                <thead><tr><th>نام نقش</th><th>توضیح</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="r, iStat : *{roles}">
+                    <td><input type="text" th:field="*{roles[__${iStat.index}__].name}" placeholder="ROLE_ADMIN"/></td>
+                    <td><input type="text" th:field="*{roles[__${iStat.index}__].desc}" placeholder="مدیر سامانه"/></td>
+                    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">حذف</button></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="actions">
+                <button class="btn btn-secondary" type="button" onclick="addRoleRow()">+ افزودن نقش</button>
+            </div>
+
+            <div class="hr"></div>
+            <h4>قوانین دسترسی اندپوینت‌ها</h4>
+            <table class="table" id="rulesTable">
+                <thead><tr><th>الگوی مسیر</th><th>متد</th><th>نیازمندی</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="r, iStat : *{rules}">
+                    <td><input type="text" th:field="*{rules[__${iStat.index}__].pathPattern}" placeholder="/api/**"/></td>
+                    <td>
+                        <select th:field="*{rules[__${iStat.index}__].httpMethod}">
+                            <option>ANY</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+                        </select>
+                    </td>
+                    <td><input type="text" th:field="*{rules[__${iStat.index}__].requirement}" placeholder="authenticated / hasRole('ROLE_ADMIN')"/></td>
+                    <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">حذف</button></td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="actions">
+                <button class="btn btn-secondary" type="button" onclick="addRuleRow()">+ افزودن قانون</button>
+                <div class="spacer"></div>
+                <button class="btn btn-primary" type="submit">ذخیره امنیت</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -15,6 +15,12 @@ public class ControllerDef {
     //
     private List<EndpointDef> endpoints = new ArrayList<>();
 
+    private String defaultHttpMethod; // NEW: برای نگه‌داشتن انتخاب کاربر در باکس کنترلر
+
+    public String getDefaultHttpMethod() { return defaultHttpMethod; }
+    public void setDefaultHttpMethod(String defaultHttpMethod) { this.defaultHttpMethod = defaultHttpMethod; }
+
+
     public ControllerDef() {
     }
 

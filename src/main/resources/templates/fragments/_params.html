@@ -1,0 +1,41 @@
+<!— fragments/_params.html —>
+<section th:fragment="params(project, form, paramLocations, javaTypes)">
+    <div class="card" th:if="${form.editing}">
+        <div class="card-head"><h3>پارامترهای URL/HEADER</h3></div>
+
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/controllers/params'}"
+              th:object="${form}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{name}"/>
+            <input type="hidden" th:field="*{endpointIndex}"/>
+
+            <table class="table">
+                <thead><tr><th>نام</th><th>محل</th><th>نوع</th><th>ضروری؟</th><th></th></tr></thead>
+                <tbody id="paramsBody">
+                <tr th:each="p, it : *{params}">
+                    <td><input type="text" th:field="*{params[__${it.index}__].name}" placeholder="id / q / X-Trace"/></td>
+                    <td>
+                        <select th:field="*{params[__${it.index}__].in}">
+                            <option th:each="loc : ${paramLocations}" th:value="${loc}" th:text="${loc}">PATH</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select th:field="*{params[__${it.index}__].javaType}">
+                            <option th:each="t : ${javaTypes}" th:value="${t}" th:text="${t}">String</option>
+                        </select>
+                    </td>
+                    <td class="center"><input type="checkbox" th:field="*{params[__${it.index}__].required}"/></td>
+                    <td><button class="btn btn-danger btn-sm" type="button" onclick="removeParamRow(this)">حذف</button></td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="actions">
+                <button type="button" class="btn btn-secondary" onclick="addParamRow()">+ افزودن پارامتر</button>
+                <div class="spacer"></div>
+                <button type="submit" class="btn btn-primary">ذخیره پارامترها</button>
+            </div>
+        </form>
+    </div>
+</section>

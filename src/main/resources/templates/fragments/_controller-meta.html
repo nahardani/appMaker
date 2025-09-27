@@ -1,0 +1,49 @@
+<!— fragments/_controller-meta.html —>
+<section th:fragment="meta(project, form, types, httpMethods)">
+    <div class="card">
+        <div class="card-head"><h3>اطلاعات کنترلر</h3></div>
+
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/controllers/meta'}"
+              th:object="${form}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{editing}"/>
+            <input type="hidden" th:field="*{originalControllerName}"/>
+
+            <div class="grid-2">
+                <div>
+                    <label>نام کنترلر</label>
+                    <input type="text" th:field="*{name}" placeholder="OrderController" required/>
+                </div>
+                <div>
+                    <label>Base Path</label>
+                    <input type="text" th:field="*{basePath}" placeholder="/api/orders" required/>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div>
+                    <label>نوع</label>
+                    <select th:field="*{type}">
+                        <option value="REST" th:if="${types == null}">REST</option>
+                        <option th:each="t : ${types}" th:value="${t}" th:text="${t}">REST</option>
+                    </select>
+                </div>
+                <div>
+                    <label>HTTP Method</label>
+                    <select th:field="*{httpMethod}" id="httpMethodTop">
+                        <option th:each="m : ${httpMethods}" th:value="${m}" th:text="${m}">GET</option>
+                    </select>
+                </div>
+                <div>
+                    <label>توضیحات (اختیاری)</label>
+                    <input type="text" th:field="*{description}" placeholder=""/>
+                </div>
+            </div>
+
+            <div class="right">
+                <button type="submit" class="btn btn-primary">ذخیره اطلاعات کنترلر</button>
+            </div>
+        </form>
+    </div>
+</section>
