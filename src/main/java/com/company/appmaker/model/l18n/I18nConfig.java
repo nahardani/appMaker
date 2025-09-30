@@ -1,4 +1,4 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.l18n;
 
 import java.util.ArrayList;
 import java.util.List;

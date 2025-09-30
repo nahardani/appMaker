@@ -1,4 +1,4 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.coctroller;
 
 import java.util.ArrayList;
 import java.util.Collections;

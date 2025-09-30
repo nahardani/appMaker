@@ -9,18 +9,21 @@
               method="post"
               id="i18nForm">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-            <!-- برای ماندن روی همان کنترلر/اندپوینت بعد از ذخیره -->
+            <!-- برای ماندن روی همان کنترلر/اندپوینت پس از ذخیره -->
             <input type="hidden" name="ctrl" th:value="${form != null ? form.name : null}"/>
             <input type="hidden" name="ep"   th:value="${form != null ? form.endpointIndex : null}"/>
 
             <div class="grid-3">
                 <div>
                     <label>زبان پیش‌فرض</label>
-                    <input type="text" th:field="*{defaultLocale}" placeholder="fa"/>
+                    <input type="text" th:field="*{defaultLang}" placeholder="fa"/>
                 </div>
                 <div>
-                    <label>لیست زبان‌ها (CSV)</label>
-                    <input type="text" th:field="*{localesCsv}" id="localesCsv" placeholder="fa,en"/>
+                    <label>فهرست زبان‌ها (CSV)</label>
+                    <!-- این فیلد به فرم بایند نیست؛ کنترلر آن را به form.languages مپ می‌کند -->
+                    <input type="text" id="languagesCsv" name="languagesCsv"
+                           th:value="${i18nForm.languages != null ? #strings.listJoin(i18nForm.languages, ',') : ''}"
+                           placeholder="fa,en"/>
                 </div>
                 <div>
                     <label>Base name</label>
@@ -38,28 +41,27 @@
             <table class="table" id="i18nKeysTable">
                 <thead>
                 <tr id="i18nKeysHead">
-                    <th>کُد</th>
-                    <!-- ستون‌های زبان‌ها با JS اضافه می‌شود -->
+                    <th>کلید</th>
+                    <!-- ستون‌های زبان با JS ساخته می‌شود -->
                     <th style="width:1%"></th>
                 </tr>
                 </thead>
-                <tbody id="i18nKeysBody">
-                <!-- ردیف‌ها با JS ساخته می‌شوند -->
-                </tbody>
+                <tbody id="i18nKeysBody"></tbody>
             </table>
 
-            <!-- داده‌های موجود (بدون JSON) -->
+            <!-- داده‌ی موجود برای Hydration -->
             <div id="i18nExisting" style="display:none">
-                <input type="hidden" id="i18n_defaultLocale" th:value="*{defaultLocale}"/>
-                <input type="hidden" id="i18n_localesCsv"  th:value="*{localesCsv}"/>
+                <input type="hidden" id="i18n_defaultLang" th:value="*{defaultLang}"/>
+                <input type="hidden" id="i18n_languagesCsv"
+                       th:value="${i18nForm.languages != null ? #strings.listJoin(i18nForm.languages, ',') : ''}"/>
 
-                <div th:each="k, idxStat : *{keys}">
-                    <input type="hidden" th:id="${'key_'+idxStat.index+'_code'}" th:value="${k.code}"/>
-                    <th:block th:with="locs=${#strings.arraySplit(i18nForm.localesCsv, ',')}">
+                <div th:each="k, idx : *{keys}">
+                    <input type="hidden" th:id="${'key_'+idx.index+'_key'}" th:value="${k.key}"/>
+                    <th:block th:with="langs=${i18nForm.languages}">
                         <input type="hidden"
-                               th:each="loc : ${locs}"
-                               th:id="${'key_'+idxStat.index+'_t_' + ${#strings.trim(loc)}}"
-                               th:value="${k.translations[#strings.trim(loc)]}"/>
+                               th:each="lng : ${langs}"
+                               th:id="${'key_'+idx.index+'_t_' + ${lng}}"
+                               th:value="${k.translations[lng]}"/>
                     </th:block>
                 </div>
             </div>
@@ -73,39 +75,39 @@
     <script th:inline="javascript">
         /*<![CDATA[*/
         (function(){
-            function parseLocales(){
-                var csv = document.getElementById('localesCsv').value || '';
-                return csv.split(',').map(function(s){ return s.trim(); }).filter(function(s){return s.length>0;});
+            function parseLangs(){
+                var csv = document.getElementById('languagesCsv').value || '';
+                return csv.split(',').map(function(s){return s.trim();}).filter(function(s){return s.length>0;});
             }
 
             function rebuildHead(){
                 var head = document.getElementById('i18nKeysHead');
                 while (head.children.length > 2) head.removeChild(head.children[1]);
-                parseLocales().forEach(function(loc){
+                parseLangs().forEach(function(lng){
                     var th = document.createElement('th');
-                    th.textContent = 'ترجمه (' + loc + ')';
+                    th.textContent = 'ترجمه (' + lng + ')';
                     head.insertBefore(th, head.lastElementChild);
                 });
             }
 
-            function newRow(index, code, translations){
-                var locales = parseLocales();
+            function newRow(index, key, translations){
+                var langs = parseLangs();
                 var tr = document.createElement('tr');
 
-                var tdCode = document.createElement('td');
-                var inpCode = document.createElement('input');
-                inpCode.type = 'text';
-                inpCode.name = 'keys['+index+'].code';
-                inpCode.value = code || '';
-                tdCode.appendChild(inpCode);
-                tr.appendChild(tdCode);
+                var tdKey = document.createElement('td');
+                var inpKey = document.createElement('input');
+                inpKey.type = 'text';
+                inpKey.name = 'keys['+index+'].key';
+                inpKey.value = key || '';
+                tdKey.appendChild(inpKey);
+                tr.appendChild(tdKey);
 
-                locales.forEach(function(loc){
+                langs.forEach(function(lng){
                     var td = document.createElement('td');
                     var inp = document.createElement('input');
                     inp.type = 'text';
-                    inp.name = 'keys['+index+'].translations['+loc+']';
-                    inp.value = (translations && translations[loc]) ? translations[loc] : '';
+                    inp.name = 'keys['+index+'].translations['+lng+']';
+                    inp.value = (translations && translations[lng]) ? translations[lng] : '';
                     td.appendChild(inp);
                     tr.appendChild(td);
                 });
@@ -135,16 +137,16 @@
                 var body = document.getElementById('i18nKeysBody');
                 var idx = body.querySelectorAll('tr').length;
                 body.appendChild(newRow(idx, '', {}));
-            }
+            };
 
             function rebuildRowsKeepData(){
                 var body = document.getElementById('i18nKeysBody');
                 var existing = [];
                 body.querySelectorAll('tr').forEach(function(tr){
-                    var row = { code: '', translations:{} };
+                    var row = { key:'', translations:{} };
                     tr.querySelectorAll('input').forEach(function(inp){
-                        if (inp.name.endsWith('.code')) {
-                            row.code = inp.value;
+                        if (inp.name.endsWith('.key')) {
+                            row.key = inp.value;
                         } else {
                             var m = inp.name.match(/translations\[(.+?)\]/);
                             if (m) row.translations[m[1]] = inp.value;
@@ -152,39 +154,36 @@
                     });
                     existing.push(row);
                 });
-
                 rebuildHead();
                 body.innerHTML = '';
-                existing.forEach(function(r, i){
-                    body.appendChild(newRow(i, r.code, r.translations));
-                });
+                existing.forEach(function(r,i){ body.appendChild(newRow(i, r.key, r.translations)); });
             }
 
-            document.getElementById('localesCsv').addEventListener('change', rebuildRowsKeepData);
+            document.getElementById('languagesCsv').addEventListener('change', rebuildRowsKeepData);
 
-            // رندر اولیه
+            // initial render
             rebuildHead();
 
-            // Hydrate از hidden ها
             (function hydrate(){
                 var body = document.getElementById('i18nKeysBody');
-                var locales = parseLocales();
+                var langsCsv = document.getElementById('i18n_languagesCsv').value || '';
+                document.getElementById('languagesCsv').value = langsCsv;
+                rebuildHead();
+
                 var idx = 0;
-                while (true) {
-                    var codeEl = document.getElementById('key_' + idx + '_code');
-                    if (!codeEl) break;
-                    var code = codeEl.value || '';
+                while (true){
+                    var keyEl = document.getElementById('key_'+idx+'_key');
+                    if (!keyEl) break;
+                    var key = keyEl.value || '';
                     var translations = {};
-                    locales.forEach(function(loc){
-                        var tEl = document.getElementById('key_' + idx + '_t_' + loc);
-                        translations[loc] = tEl ? (tEl.value || '') : '';
+                    (langsCsv.split(',').map(function(s){return s.trim();}).filter(Boolean)).forEach(function(lng){
+                        var tEl = document.getElementById('key_'+idx+'_t_'+lng);
+                        translations[lng] = tEl ? (tEl.value || '') : '';
                     });
-                    body.appendChild(newRow(body.querySelectorAll('tr').length, code, translations));
+                    body.appendChild(newRow(body.querySelectorAll('tr').length, key, translations));
                     idx++;
                 }
-                if (body.children.length === 0) {
-                    body.appendChild(newRow(0, '', {}));
-                }
+                if (body.children.length === 0) body.appendChild(newRow(0,'',{}));
             })();
         })();
         /*]]>*/

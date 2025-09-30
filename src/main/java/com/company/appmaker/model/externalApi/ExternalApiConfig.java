@@ -1,4 +1,4 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.externalApi;
 
 import java.util.Map;
 

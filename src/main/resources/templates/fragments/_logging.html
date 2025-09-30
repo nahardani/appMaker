@@ -1,49 +1,143 @@
-<!— Logging —>
-<div th:fragment="logging(project)">
-    <div class="card">
-        <div class="card-head"><h3>تنظیمات Logging</h3></div>
+<!-- templates/fragments/_logging.html -->
+<div th:fragment="logging(project, loggingForm, form, logLevels)">
+    <div class="card" th:classappend="${form!=null && form.editing ? '' : ' disabled'}">
+        <div class="card-head">
+            <h3>تنظیمات Logging</h3>
+            <span class="muted" th:if="${form==null or !form.editing}">برای فعال‌سازی، ابتدا یک کنترلر را انتخاب/ذخیره کنید.</span>
+        </div>
 
-        <form class="form" th:action="@{'/wizard/' + ${project.id} + '/settings/logging'}" method="post">
+        <form class="form"
+              th:action="@{'/wizard/' + ${project.id} + '/settings/logging'}"
+              th:object="${loggingForm}"
+              method="post">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <!-- ماندن روی همان کنترلر/اندپوینت -->
+            <input type="hidden" name="ctrl" th:value="${form != null ? form.name : null}"/>
+            <input type="hidden" name="ep"   th:value="${form != null ? form.endpointIndex : null}"/>
 
             <div class="grid-3">
                 <div>
-                    <label>Log Level پیش‌فرض</label>
-                    <select name="log.level">
-                        <option>ERROR</option><option>WARN</option><option>INFO</option><option>DEBUG</option><option>TRACE</option>
+                    <label>فعال باشد؟</label>
+                    <select th:field="*{enabled}">
+                        <option value="true">بله</option>
+                        <option value="false">خیر</option>
                     </select>
                 </div>
                 <div>
-                    <label>Pattern</label>
-                    <input type="text" name="log.pattern" placeholder="%d{ISO8601} %-5level [%thread] %logger - %msg%n"/>
+                    <label>سطح لاگ Root</label>
+                    <select th:field="*{rootLevel}">
+                        <option th:each="lv : ${logLevels}" th:value="${lv}" th:text="${lv}">INFO</option>
+                    </select>
                 </div>
                 <div>
-                    <label>Appender</label>
-                    <select name="log.appender">
-                        <option value="CONSOLE">Console</option>
-                        <option value="FILE">File</option>
+                    <label>الگوی پیام (Pattern)</label>
+                    <input type="text" th:field="*{pattern}" placeholder="%d{…} [%thread] %-5level %logger - %msg%n"/>
+                </div>
+            </div>
+
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>Console Appender</h4>
+            <div class="grid-2">
+                <div>
+                    <label>فعال باشد؟</label>
+                    <select th:field="*{consoleEnabled}">
+                        <option value="true">بله</option>
+                        <option value="false">خیر</option>
                     </select>
                 </div>
             </div>
 
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>File Appender</h4>
             <div class="grid-3">
                 <div>
-                    <label>File Path (در صورت File)</label>
-                    <input type="text" name="log.file.path" placeholder="logs/app.log"/>
+                    <label>فعال باشد؟</label>
+                    <select th:field="*{fileEnabled}">
+                        <option value="true">بله</option>
+                        <option value="false">خیر</option>
+                    </select>
                 </div>
                 <div>
-                    <label>Rolling Policy</label>
-                    <input type="text" name="log.rolling" placeholder="size:10MB;history:7"/>
+                    <label>مسیر فایل</label>
+                    <input type="text" th:field="*{filePath}" placeholder="logs/app.log"/>
                 </div>
                 <div>
-                    <label>Loggerهای اختصاصی (package → level)</label>
-                    <textarea name="log.custom" placeholder="com.company=DEBUG&#10;org.springframework=WARN"></textarea>
+                    <label>حداکثر اندازه فایل (rolling)</label>
+                    <input type="text" th:field="*{fileMaxSize}" placeholder="10MB"/>
+                </div>
+            </div>
+            <div class="grid-3">
+                <div>
+                    <label>تعداد فایل‌های تاریخچه</label>
+                    <input type="number" min="0" th:field="*{fileMaxHistory}" placeholder="7"/>
                 </div>
             </div>
 
-            <div class="actions" style="justify-content:flex-end">
-                <button class="btn btn-primary" type="submit">ذخیره Logging</button>
+            <div class="hr" style="margin:8px 0"></div>
+            <h4>Loggerهای سفارشی</h4>
+            <table class="table">
+                <thead><tr><th>نام Logger</th><th>Level</th><th style="width:1%"></th></tr></thead>
+                <tbody id="loggersBody">
+                <tr th:each="lg, it : *{loggers}">
+                    <td><input type="text" th:field="*{loggers[__${it.index}__].name}" placeholder="com.company.app"/></td>
+                    <td>
+                        <select th:field="*{loggers[__${it.index}__].level}">
+                            <option th:each="lv : ${logLevels}" th:value="${lv}" th:text="${lv}">INFO</option>
+                        </select>
+                    </td>
+                    <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">حذف</button></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="actions" style="margin-top:8px;">
+                <button type="button" class="btn btn-secondary" onclick="addLoggerRow()">+ افزودن Logger</button>
+                <div class="spacer"></div>
+                <button type="submit" class="btn btn-primary">ذخیره Logging</button>
             </div>
         </form>
     </div>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        (function(){
+            window.addLoggerRow = function(){
+                var body = document.getElementById('loggersBody');
+                var idx  = body.querySelectorAll('tr').length;
+                var tr   = document.createElement('tr');
+
+                var td1 = document.createElement('td');
+                var i1  = document.createElement('input');
+                i1.type = 'text';
+                i1.name = 'loggers['+idx+'].name';
+                i1.placeholder = 'com.company.app';
+                td1.appendChild(i1);
+
+                var td2 = document.createElement('td');
+                var s   = document.createElement('select');
+                s.name  = 'loggers['+idx+'].level';
+                var levels = /*[[${logLevels}]]*/ ["TRACE","DEBUG","INFO","WARN","ERROR"];
+                levels.forEach(function(lv){
+                    var opt = document.createElement('option');
+                    opt.value = lv; opt.textContent = lv;
+                    if (lv === 'INFO') opt.selected = true;
+                    s.appendChild(opt);
+                });
+                td2.appendChild(s);
+
+                var td3 = document.createElement('td');
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'btn btn-danger btn-sm';
+                del.textContent = 'حذف';
+                del.onclick = function(){ tr.remove(); };
+                td3.appendChild(del);
+
+                tr.appendChild(td1);
+                tr.appendChild(td2);
+                tr.appendChild(td3);
+                body.appendChild(tr);
+            };
+        })();
+        /*]]>*/
+    </script>
 </div>

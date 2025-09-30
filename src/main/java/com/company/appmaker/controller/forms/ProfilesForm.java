@@ -1,6 +1,6 @@
 package com.company.appmaker.controller.forms;
 
-import com.company.appmaker.model.ProfileSettings;
+import com.company.appmaker.model.profile.ProfileSettings;
 import java.util.Arrays;
 import java.util.List;
 

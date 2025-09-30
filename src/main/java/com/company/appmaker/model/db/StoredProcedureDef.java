@@ -1,4 +1,6 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.db;
+
+import com.company.appmaker.model.FieldDef;
 
 import java.util.ArrayList;
 import java.util.List;

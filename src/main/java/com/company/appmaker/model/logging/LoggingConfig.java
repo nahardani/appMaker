@@ -1,4 +1,4 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.logging;
 
 import java.util.Map;
 

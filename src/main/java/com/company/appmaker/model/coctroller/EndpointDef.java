@@ -1,4 +1,8 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.coctroller;
+
+import com.company.appmaker.model.FieldDef;
+import com.company.appmaker.model.ParamDef;
+import com.company.appmaker.model.ResponsePartDef;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,10 +1,15 @@
 package com.company.appmaker.controller;
 
-import com.company.appmaker.controller.forms.I18nForm;
-import com.company.appmaker.controller.forms.ProfilesForm;
-import com.company.appmaker.controller.forms.SecurityForm;
-import com.company.appmaker.controller.forms.SwaggerForm;
+import com.company.appmaker.controller.forms.*;
 import com.company.appmaker.model.*;
+import com.company.appmaker.model.coctroller.ControllerDef;
+import com.company.appmaker.model.coctroller.EndpointDef;
+import com.company.appmaker.model.externalApi.ExternalApisSettings;
+import com.company.appmaker.model.l18n.I18nSettings;
+import com.company.appmaker.model.logging.LoggingSettings;
+import com.company.appmaker.model.profile.ProfileSettings;
+import com.company.appmaker.model.security.SecuritySettings;
+import com.company.appmaker.model.swagger.SwaggerSettings;
 import com.company.appmaker.repo.ProjectRepository;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.stereotype.Controller;
@@ -12,11 +17,11 @@ import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 import com.company.appmaker.config.ProjectScaffolder;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*; // HttpHeaders, MediaType, ContentDisposition, ResponseEntity
 import org.springframework.web.util.UriUtils;
 
@@ -108,116 +113,112 @@ public class WizardController {
     public String controllers(@PathVariable String id,
                               @RequestParam(value = "ctrl", required = false) String ctrlName,
                               @RequestParam(value = "ep",   required = false) Integer epIndex,
+                              @RequestParam(value = "api",  required = false) String apiSelected,
                               Model model) {
+
         var p = repo.findById(id).orElse(null);
         if (p == null) return "redirect:/projects";
 
+        // پروژه برای همه فرگمنت‌ها
         model.addAttribute("project", p);
 
-        // داخل متد GET /wizard/{id}/controllers ، بعد از model.addAttribute("project", p) و ...
-        var security = p.getSecurity(); // از Project
-        SecurityForm sform = new SecurityForm();
-        if (security != null) {
-            sform.setAuthType(security.getAuthType() == null ? "NONE" : security.getAuthType().name());
-            sform.setBasicUsername(security.getBasicUsername());
-            sform.setBasicPassword(security.getBasicPassword());
-            sform.setBearerToken(security.getBearerToken());
-            sform.setJwtSecret(security.getJwtSecret());
-            sform.setJwtIssuer(security.getJwtIssuer());
-            sform.setJwtAudience(security.getJwtAudience());
-            sform.setJwtExpirationSeconds(security.getJwtExpirationSeconds());
-            sform.setOauth2ClientId(security.getOauth2ClientId());
-            sform.setOauth2ClientSecret(security.getOauth2ClientSecret());
-            sform.setOauth2Issuer(security.getOauth2Issuer());
-            sform.setOauth2Scopes(security.getOauth2Scopes());
-            if (security.getOauth2Scopes() != null)
-                sform.setOauth2Scopes(new java.util.ArrayList<>(security.getOauth2Scopes()));
-            if (security.getRoles() != null)
-                security.getRoles().forEach(r -> {
-                    var rs = new SecurityForm.RoleSlot();
-                    rs.setName(r.getName());
-                    rs.setDesc(r.getDesc());
-                    sform.getRoles().add(rs);
-                });
-            if (security.getRules() != null)
-                security.getRules().forEach(r -> {
-                    var rl = new SecurityForm.RuleSlot();
-                    rl.setPathPattern(r.getPathPattern());
-                    rl.setHttpMethod(r.getHttpMethod());
-                    rl.setRequirement(r.getRequirement());
-                    sform.getRules().add(rl);
-                });
-        } else {
-            sform.setAuthType("NONE");
-        }
-        model.addAttribute("securityForm", sform);
-
-
-        var swaggerForm = SwaggerForm.from(p.getSwagger());
-        model.addAttribute("swaggerForm", swaggerForm);
-
-        var profilesForm = ProfilesForm.from(p.getProfiles());
-        model.addAttribute("profilesForm", profilesForm);
-
-        var i18nForm = I18nForm.from(p.getI18n());
-        model.addAttribute("i18nForm", i18nForm);
-
-
-
-        model.addAttribute("httpMethodsAll", java.util.List.of("GET","POST","PUT","PATCH","DELETE","ANY"));
-
-
-        // داده‌های کمکی UI (همیشه بده)
+        // ===== داده‌های کمکی UI (ثابت‌ها) =====
         model.addAttribute("types", List.of("REST"));
         model.addAttribute("httpMethods", List.of("GET","POST","PUT","PATCH","DELETE"));
+        model.addAttribute("httpMethodsAll", List.of("GET","POST","PUT","PATCH","DELETE","ANY"));
         model.addAttribute("paramLocations", List.of("PATH","QUERY","HEADER"));
         model.addAttribute("javaTypes", List.of("String","Long","Integer","Double","Boolean","UUID","LocalDate","LocalDateTime"));
 
+        // External APIs کمکی
+        model.addAttribute("apiAuthTypes", List.of("NONE","BASIC","BEARER","API_KEY"));
+        model.addAttribute("apiKeyInOptions", List.of("HEADER","QUERY"));
+        model.addAttribute("httpMethodsApi", List.of("GET","POST"));
+
+        // ===== فرم کنترلر/اندپوینت =====
+        ControllerForm form = buildControllerForm(p, ctrlName, epIndex);
+        model.addAttribute("form", form);
+
+        // ===== فرم امنیت =====
+        SecurityForm securityForm = buildSecurityForm(p.getSecurity());
+        model.addAttribute("securityForm", securityForm);
+
+        // ===== فرم Swagger =====
+        SwaggerForm swaggerForm = SwaggerForm.from(p.getSwagger());
+        if (swaggerForm == null) swaggerForm = new SwaggerForm(); // نال‌سیف
+        model.addAttribute("swaggerForm", swaggerForm);
+
+        // ===== فرم Profiles =====
+        ProfilesForm profilesForm = ProfilesForm.from(p.getProfiles());
+        if (profilesForm == null) profilesForm = new ProfilesForm(); // نال‌سیف
+        model.addAttribute("profilesForm", profilesForm);
+
+        // ===== فرم i18n =====
+        I18nForm i18nForm = I18nForm.from(p.getI18n());
+        if (i18nForm == null) i18nForm = new I18nForm(); // نال‌سیف
+        // نال‌سیف برای لیست‌ها
+        if (i18nForm.getLanguages() == null) i18nForm.setLanguages(new java.util.ArrayList<>());
+        if (i18nForm.getKeys() == null)      i18nForm.setKeys(new java.util.ArrayList<>());
+        model.addAttribute("i18nForm", i18nForm);
+
+        // ===== فرم External APIs =====
+        ExternalApiForm apiForm = ExternalApiForm.from(p.getExternalApis(), apiSelected);
+        if (apiForm == null) apiForm = new ExternalApiForm(); // نال‌سیف
+        model.addAttribute("apiForm", apiForm);
+
+        var loggingForm = com.company.appmaker.controller.forms.LoggingForm.from(p.getLogging());
+        model.addAttribute("loggingForm", loggingForm);
+
+        // برای DropDown سطح لاگ
+        model.addAttribute("logLevels", java.util.List.of("TRACE","DEBUG","INFO","WARN","ERROR"));
+
+
+
+        return "wizard/wizard-controllers";
+    }
+
+    /* ================== Helpers ================== */
+
+    /** ساخت فرم کنترلر/اندپوینت با انتخاب ایمن endpoint */
+    private ControllerForm buildControllerForm(Project p, String ctrlName, Integer epIndex) {
         ControllerForm form = new ControllerForm();
 
-        // حالت کنترلر جدید
+        // حالت "کنترلر جدید"
         if (ctrlName == null || ctrlName.isBlank()) {
             form.setEditing(false);
             form.setType("REST");
             form.setHttpMethod("GET");
-            form.setParams(new ArrayList<>());
-            form.setRequestFields(new ArrayList<>());
-            form.setResponseParts(new ArrayList<>());
-            model.addAttribute("form", form);
-            return "wizard/wizard-controllers";
+            ensureControllerLists(form);
+            return form;
         }
 
-        // یافتن کنترلر
-        var ctrl = p.getControllers().stream()
-                .filter(c -> c != null && ctrlName.equals(c.getName()))
-                .findFirst().orElse(null);
+        var ctrl = p.getControllers() == null ? null :
+                p.getControllers().stream()
+                        .filter(c -> c != null && ctrlName.equals(c.getName()))
+                        .findFirst().orElse(null);
 
         if (ctrl == null) {
             form.setEditing(false);
             form.setType("REST");
             form.setHttpMethod("GET");
-            form.setParams(new ArrayList<>());
-            form.setRequestFields(new ArrayList<>());
-            form.setResponseParts(new ArrayList<>());
-            model.addAttribute("form", form);
-            return "wizard/wizard-controllers";
+            ensureControllerLists(form);
+            return form;
         }
 
-        // پرکردن متادیتا
+        // متادیتای کنترلر
         form.setEditing(true);
         form.setOriginalControllerName(ctrl.getName());
         form.setName(ctrl.getName());
         form.setBasePath(ctrl.getBasePath());
         form.setType(ctrl.getType());
 
+        // انتخاب امن endpoint:
         var eps = ctrl.getEndpoints();
-        // ✅ انتخاب اندپوینت ایمن: اگر ep نیامده ولی اندپوینت داریم → idx=0
         Integer idx = null;
         if (eps != null && !eps.isEmpty()) {
             if (epIndex != null && epIndex >= 0 && epIndex < eps.size()) {
                 idx = epIndex;
             } else {
-                idx = 0;
+                idx = 0; // اگر چیزی انتخاب نشده بود، اولین اندپوینت
             }
         }
         form.setEndpointIndex(idx);
@@ -271,29 +272,76 @@ public class WizardController {
                                 return slot;
                             }).collect(Collectors.toList())
             );
+
         } else {
             // هیچ اندپوینتی منتخب نیست
-            form.setHttpMethod("GET"); // یا اگر defaultHttpMethod داری، اینجا ست کن
-            form.setParams(new ArrayList<>());
-            form.setRequestFields(new ArrayList<>());
-            form.setResponseParts(new ArrayList<>());
+            form.setHttpMethod("GET");
+            ensureControllerLists(form);
         }
 
         // تضمین مقدار
         if (form.getHttpMethod() == null) form.setHttpMethod("GET");
 
-        model.addAttribute("form", form);
-        // پس از load پروژه p و قبل از return:
-
-        if (sform.getRoles() == null) sform.setRoles(new java.util.ArrayList<>());
-        if (sform.getRules() == null) sform.setRules(new java.util.ArrayList<>());
-        if (sform.getOauth2Scopes() == null) sform.setOauth2Scopes(new java.util.ArrayList<>());
-        if (sform.getAuthType() == null) sform.setAuthType("NONE");
-
-        model.addAttribute("securityForm", sform);
-
-        return "wizard/wizard-controllers";
+        return form;
     }
+
+    /** نال‌سیف کردن لیست‌های داخل ControllerForm */
+    private void ensureControllerLists(ControllerForm form) {
+        if (form.getParams() == null)        form.setParams(new ArrayList<>());
+        if (form.getRequestFields() == null) form.setRequestFields(new ArrayList<>());
+        if (form.getResponseParts() == null) form.setResponseParts(new ArrayList<>());
+    }
+
+    /** نگاشت امن SecuritySettings -> SecurityForm */
+    private SecurityForm buildSecurityForm(SecuritySettings security) {
+        SecurityForm sform = new SecurityForm();
+        if (security == null) {
+            sform.setAuthType("NONE");
+            sform.setRoles(new ArrayList<>());
+            sform.setRules(new ArrayList<>());
+            sform.setOauth2Scopes(new ArrayList<>());
+            return sform;
+        }
+        sform.setAuthType(security.getAuthType() == null ? "NONE" : security.getAuthType().name());
+        sform.setBasicUsername(security.getBasicUsername());
+        sform.setBasicPassword(security.getBasicPassword());
+        sform.setBearerToken(security.getBearerToken());
+        sform.setJwtSecret(security.getJwtSecret());
+        sform.setJwtIssuer(security.getJwtIssuer());
+        sform.setJwtAudience(security.getJwtAudience());
+        sform.setJwtExpirationSeconds(security.getJwtExpirationSeconds());
+        sform.setOauth2ClientId(security.getOauth2ClientId());
+        sform.setOauth2ClientSecret(security.getOauth2ClientSecret());
+        sform.setOauth2Issuer(security.getOauth2Issuer());
+
+        // لیست‌ها
+        sform.setOauth2Scopes(security.getOauth2Scopes()==null ? new ArrayList<>() : new ArrayList<>(security.getOauth2Scopes()));
+
+        sform.setRoles(new ArrayList<>());
+        if (security.getRoles() != null) {
+            for (var r : security.getRoles()) {
+                if (r == null) continue;
+                var rs = new SecurityForm.RoleSlot();
+                rs.setName(r.getName());
+                rs.setDesc(r.getDesc());
+                sform.getRoles().add(rs);
+            }
+        }
+
+        sform.setRules(new ArrayList<>());
+        if (security.getRules() != null) {
+            for (var r : security.getRules()) {
+                if (r == null) continue;
+                var rl = new SecurityForm.RuleSlot();
+                rl.setPathPattern(r.getPathPattern());
+                rl.setHttpMethod(r.getHttpMethod());
+                rl.setRequirement(r.getRequirement());
+                sform.getRules().add(rl);
+            }
+        }
+        return sform;
+    }
+
 
 
 
@@ -689,26 +737,53 @@ public class WizardController {
     }
 
     // دانلود ZIP
+//    @PostMapping("/final/zip")
+//    public ResponseEntity<ByteArrayResource> downloadZip(@PathVariable String id) {
+//        var p = load(id).orElse(null);
+//        if (p == null) return ResponseEntity.status(HttpStatus.FOUND)
+//                .header(HttpHeaders.LOCATION, "/projects").build();
+//        try {
+//            byte[] bytes = scaffolder.scaffoldZip(p);
+//            String filename = safeFileName(p.getProjectName()) + ".zip";
+//            HttpHeaders headers = new HttpHeaders();
+//            headers.setContentType(MediaType.parseMediaType("application/zip"));
+//            headers.setContentDisposition(
+//                    ContentDisposition.attachment().filename(filename).build()
+//            );
+//            return new ResponseEntity<>(new ByteArrayResource(bytes), headers, HttpStatus.OK);
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.FOUND)
+//                    .header(HttpHeaders.LOCATION, "/wizard/" + id + "/final?err=" + url(e.getMessage()))
+//                    .build();
+//        }
+//    }
+
     @PostMapping("/final/zip")
-    public ResponseEntity<ByteArrayResource> downloadZip(@PathVariable String id) {
-        var p = load(id).orElse(null);
-        if (p == null) return ResponseEntity.status(HttpStatus.FOUND)
-                .header(HttpHeaders.LOCATION, "/projects").build();
+    public ResponseEntity<byte[]> downloadZip(@PathVariable String id) {
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return ResponseEntity.notFound().build();
+
+        byte[] zip;
         try {
-            byte[] bytes = scaffolder.scaffoldZip(p);
-            String filename = safeFileName(p.getProjectName()) + ".zip";
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/zip"));
-            headers.setContentDisposition(
-                    ContentDisposition.attachment().filename(filename).build()
-            );
-            return new ResponseEntity<>(new ByteArrayResource(bytes), headers, HttpStatus.OK);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.FOUND)
-                    .header(HttpHeaders.LOCATION, "/wizard/" + id + "/final?err=" + url(e.getMessage()))
-                    .build();
+            zip = scaffolder.scaffoldZip(p);
+        } catch (IOException e) {
+            // می‌تونی برای دیباگ لاگ هم بگذاری
+            // log.error("ZIP generation failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+
+        String fileName = (p.getProjectName() == null || p.getProjectName().isBlank())
+                ? "project.zip"
+                : p.getProjectName().trim() + ".zip";
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(fileName).build().toString())
+                .body(zip);
     }
+
+
 
     // ذخیره پروژه روی دیسک (مسیر محلی سرور)
     @PostMapping("/final/save")
@@ -1075,7 +1150,7 @@ public class WizardController {
         var p = repo.findById(id).orElse(null);
         if (p == null) return "redirect:/projects";
 
-        if (p.getProfiles() == null) p.setProfiles(new com.company.appmaker.model.ProfileSettings());
+        if (p.getProfiles() == null) p.setProfiles(new ProfileSettings());
         form.applyTo(p.getProfiles());
         repo.save(p);
 
@@ -1088,16 +1163,101 @@ public class WizardController {
     }
 
 
+    // داخل WizardController
     @PostMapping("/settings/i18n")
     public String saveI18n(@PathVariable String id,
                            @ModelAttribute("i18nForm") com.company.appmaker.controller.forms.I18nForm form,
+                           @RequestParam(value="languagesCsv", required=false) String languagesCsv,
                            @RequestParam(value="ctrl", required=false) String ctrlName,
                            @RequestParam(value="ep",   required=false) Integer epIndex) {
         var p = repo.findById(id).orElse(null);
         if (p == null) return "redirect:/projects";
 
-        if (p.getI18n()==null) p.setI18n(new com.company.appmaker.model.I18nSettings());
+        // CSV → List<String>
+        if (languagesCsv != null) {
+            var langs = java.util.Arrays.stream(languagesCsv.split(","))
+                    .map(String::trim).filter(s->!s.isEmpty())
+                    .distinct().toList();
+            form.setLanguages(new java.util.ArrayList<>(langs));
+        }
+
+        if (p.getI18n()==null) p.setI18n(new I18nSettings());
         form.applyTo(p.getI18n());
+        repo.save(p);
+
+        String redirect = "redirect:/wizard/" + id + "/controllers";
+        if (ctrlName != null && !ctrlName.isBlank()) {
+            redirect += "?ctrl=" + ctrlName;
+            if (epIndex != null) redirect += "&ep=" + epIndex;
+        }
+        return redirect;
+    }
+
+
+
+    @PostMapping("/settings/external-apis")
+    public String saveExternalApi(@PathVariable String id,
+                                  @ModelAttribute("apiForm") com.company.appmaker.controller.forms.ExternalApiForm form,
+                                  @RequestParam(value="ctrl", required=false) String ctrlName,
+                                  @RequestParam(value="ep",   required=false) Integer epIndex) {
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return "redirect:/projects";
+        if (p.getExternalApis()==null) p.setExternalApis(new ExternalApisSettings());
+
+        var c = form.toModel();
+
+        // اگر از قبل موجود بود، جایگزین کن؛ وگرنه اضافه کن
+        var list = p.getExternalApis().getClients();
+        int idx = -1;
+        for (int i=0;i<list.size();i++){
+            var it = list.get(i);
+            if (it!=null && it.getName()!=null && it.getName().equals(c.getName())) { idx = i; break; }
+        }
+        if (idx >= 0) list.set(idx, c); else list.add(c);
+
+        repo.save(p);
+
+        String redirect = "redirect:/wizard/" + id + "/controllers";
+        // بمان روی همان کنترلر/اندپوینت و همان API انتخاب‌شده
+        redirect += "?api=" + java.net.URLEncoder.encode(c.getName()==null?"":c.getName(), java.nio.charset.StandardCharsets.UTF_8);
+        if (ctrlName != null && !ctrlName.isBlank()) {
+            redirect += "&ctrl=" + ctrlName;
+            if (epIndex != null) redirect += "&ep=" + epIndex;
+        }
+        return redirect;
+    }
+
+
+    @PostMapping("/settings/external-apis/delete")
+    public String deleteExternalApi(@PathVariable String id,
+                                    @RequestParam("name") String name,
+                                    @RequestParam(value="ctrl", required=false) String ctrlName,
+                                    @RequestParam(value="ep",   required=false) Integer epIndex){
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return "redirect:/projects";
+        if (p.getExternalApis()!=null && p.getExternalApis().getClients()!=null){
+            p.getExternalApis().getClients().removeIf(c -> c!=null && name.equals(c.getName()));
+            repo.save(p);
+        }
+        String redirect = "redirect:/wizard/" + id + "/controllers";
+        if (ctrlName != null && !ctrlName.isBlank()) {
+            redirect += "?ctrl=" + ctrlName;
+            if (epIndex != null) redirect += "&ep=" + epIndex;
+        }
+        return redirect;
+    }
+
+
+    @PostMapping("/settings/logging")
+    public String saveLogging(@PathVariable String id,
+                              @ModelAttribute("loggingForm") com.company.appmaker.controller.forms.LoggingForm form,
+                              @RequestParam(value="ctrl", required=false) String ctrlName,
+                              @RequestParam(value="ep",   required=false) Integer epIndex) {
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return "redirect:/projects";
+
+        if (p.getLogging()==null) p.setLogging(new LoggingSettings());
+        form.applyTo(p.getLogging());
         repo.save(p);
 
         String redirect = "redirect:/wizard/" + id + "/controllers";

@@ -4,6 +4,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.company.appmaker.model.coctroller.ControllerDef;
+import com.company.appmaker.model.externalApi.ExternalApisSettings;
+import com.company.appmaker.model.l18n.I18nSettings;
+import com.company.appmaker.model.logging.LoggingSettings;
+import com.company.appmaker.model.profile.ProfileSettings;
+import com.company.appmaker.model.security.SecuritySettings;
+import com.company.appmaker.model.swagger.SwaggerSettings;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -31,6 +38,16 @@ public class Project {
     public I18nSettings getI18n() { return i18n; }
     public void setI18n(I18nSettings i18n) { this.i18n = i18n; }
 
+    // com.company.appmaker.model.Project
+    private ExternalApisSettings externalApis;
+    public ExternalApisSettings getExternalApis(){ return externalApis; }
+    public void setExternalApis(ExternalApisSettings s){ this.externalApis = s; }
+
+
+    // ...
+    private LoggingSettings logging;
+    public LoggingSettings getLogging(){ return logging; }
+    public void setLogging(LoggingSettings logging){ this.logging = logging; }
 
 
 

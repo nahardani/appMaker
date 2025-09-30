@@ -82,14 +82,23 @@
                 <!-- دیتابیس -->
                 <section th:replace="~{fragments/_datasource :: datasource(project=${project})}"></section>
 
-                <!-- وابستگی‌ها / APIهای خارجی -->
-                <section th:replace="~{fragments/_external-apis :: externalApis(project=${project})}"></section>
+                <section th:if="${form != null && form.editing}"
+                         th:replace="~{fragments/_external-apis :: externalApis(project=${project},
+                                                               apiForm=${apiForm},
+                                                               form=${form},
+                                                               apiAuthTypes=${apiAuthTypes},
+                                                               apiKeyInOptions=${apiKeyInOptions},
+                                                               httpMethodsApi=${httpMethodsApi})}">
+                </section>
+
 
                 <!-- Stored Procedures -->
                 <section th:replace="~{fragments/_stored-procedures :: storedProcedures(project=${project})}"></section>
 
                 <!-- Logging -->
-                <section th:replace="~{fragments/_logging :: logging(project=${project})}"></section>
+                <section th:if="${form.editing}"
+                         th:replace="~{fragments/_logging :: logging(project=${project}, loggingForm=${loggingForm}, form=${form}, logLevels=${logLevels})}"></section>
+
 
                 <!-- مسیر خروجی پروژه -->
                 <section th:replace="~{fragments/_output-path :: outputPath(project=${project})}"></section>

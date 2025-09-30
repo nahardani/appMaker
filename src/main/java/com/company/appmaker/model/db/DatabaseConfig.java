@@ -1,4 +1,4 @@
-package com.company.appmaker.model;
+package com.company.appmaker.model.db;
 
 public class DatabaseConfig {
 

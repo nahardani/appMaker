@@ -1,6 +1,6 @@
 package com.company.appmaker.controller.forms;
 
-import com.company.appmaker.model.SwaggerSettings;
+import com.company.appmaker.model.swagger.SwaggerSettings;
 
 public class SwaggerForm {
     private Boolean enabled;
