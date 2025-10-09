@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>انتخاب نسخهٔ جاوا</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+</head>
+<body>
+<div>
+    <th:block th:replace="fragments/_header :: topbar(
+        title='گام ۲ — انتخاب نسخهٔ جاوا',
+        project=${project})"></th:block>
+</div>
+<div class="container"><p>این انتخاب برای <b>پروژهٔ خروجی</b> است (۸/۱۱/۱۷/۲۱).</p>
+    <form th:action="@{'/wizard/' + ${project.id} + '/java'}" method="post">
+        <select name="javaVersion">
+            <option th:each="v : ${options}" th:value="${v}"
+                    th:selected="${v == project.javaVersion}"
+                    th:text="${v}">17</option>
+        </select>
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <button type="submit">ادامه</button>
+    </form>
+</div>
+</body>
+</html>

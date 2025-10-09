@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>سامانه ساخت سرویس — ورود</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+
+    <!-- فقط برای چیدمان صفحه لاگین؛ رنگ‌ها از style.css می‌آید -->
+    <style>
+        .login-shell{display:flex;align-items:center;justify-content:center;padding:16px;width: 30%}
+        .card--tiny{padding:18px 16px;border-radius:14px;width: 50%}
+        .brand{margin:0 0 4px;text-align:center;font-weight:800;font-size:22px}
+        .sub{margin:0 0 16px;text-align:center;font-size:12px;opacity:.8}
+        .stack{display:flex;flex-direction:column;gap:10px}
+        .input{height:42px;border:1px solid #d1d5db;border-radius:10px;padding:0 12px;background:#fff;font-size:14px;box-sizing:border-box}
+        .full{width:100%}
+        .mt12{margin-top:12px}
+    </style>
+</head>
+<body>
+<div class="container login-shell">
+    <div class="card card--tiny">
+        <h1 class="brand">سامانه ساخت سرویس</h1>
+        <p class="sub">ورود به حساب کاربری</p>
+
+        <div th:if="${param.error}" class="alert">نام کاربری یا کلمه عبور نادرست است.</div>
+        <div th:if="${param.logout}" class="ok">با موفقیت خارج شدید.</div>
+
+        <form method="post" th:action="@{/login}" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <!-- labelها حذف شده‌اند؛ hint در placeholder -->
+            <input class="input" type="text" name="username" autocomplete="username"
+                   placeholder="نام کاربری" aria-label="نام کاربری" required/>
+
+            <input class="input" type="password" name="password" autocomplete="current-password"
+                   placeholder="کلمه عبور" aria-label="کلمه عبور" required/>
+
+            <button class="btn btn-primary full mt12" type="submit">ورود</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

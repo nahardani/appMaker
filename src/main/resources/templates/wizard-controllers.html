@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <title>گام ۴ — کنترلر / Endpoint</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <link rel="stylesheet" th:href="@{/css/wizard-controllers.css}"/>
+</head>
+<body>
+    <!-- هدر یکپارچه -->
+    <th:block th:replace="fragments/_header :: topbar(title='گام 3 — کنترلر', project=${project})"></th:block>
+
+<div class="container">
+
+    <!-- هدر -->
+
+
+    <div class="layout">
+        <!-- سایدبار کنترلرها -->
+        <aside class="side"
+               th:replace="~{fragments/_sidebar-controllers :: sidebar(project=${project})}"></aside>
+
+        <!-- ستون راست: باکس‌ها -->
+        <main class="main">
+
+<!--            <section th:replace="~{fragments/_ai-assist :: aiAssist(project=${project}, form=${form})}">-->
+<!--            </section>-->
+
+            <section th:replace="~{fragments/_ai-box :: aiBox(project=${project}, form=${form})}">
+            </section>
+
+
+            <div class="card" style="margin-top:12px;">
+                <div class="actions" style="justify-content:flex-end; gap:8px;">
+                    <a class="btn btn-secondary"
+                       th:href="@{'/wizard/' + ${project.id} + '/packages'}">← بازگشت به گام پکیج‌ها</a>
+
+                    <a class="btn btn-primary"
+                       th:href="@{'/wizard/' + ${project.id} + '/final'}">ادامه → گام نهایی</a>
+                </div>
+            </div>
+
+
+
+        </main>
+    </div>
+</div>
+
+<!-- مودال‌ها و قالب‌های پنهان -->
+<th:block th:replace="~{fragments/_modals :: modals}"></th:block>
+<th:block th:replace="~{fragments/_templates-hidden :: hiddenTemplates}"></th:block>
+
+<script th:src="@{/js/wizard-controllers.js?v=12}"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: appmaker-stage1
+
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/appmaker}
+
+  # اگر می‌خواهی از یک دیتابیس رابطه‌ای محلی (H2) برای برخی ویژگی‌ها استفاده کنی:
+  datasource:
+    url: jdbc:h2:mem:appmaker;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+  flyway:
+    enabled: false    # اگر از Mongo استفاده می‌کنی، بهتر است Flyway را غیرفعال کنی
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+# logging:
+#   level:
+#     root: debug
+
+# Cache settings (اگر از Caffeine استفاده کنی)
+# spring:
+#   cache:
+#     type: caffeine
+
+# src/main/resources/application.yml  (فقط بخش AI را اضافه کن)
+
+

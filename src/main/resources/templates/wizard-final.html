@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>گام نهایی — خروجی پروژه</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+    <style>
+        .muted {
+            opacity: .8;
+            font-size: 12px
+        }
+
+        .ok {
+            background: #2a9d8f;
+            padding: 8px;
+            border-radius: 8px;
+            margin: 10px 0;
+            color: #072b2b
+        }
+
+        .err {
+            background: #e76f51;
+            padding: 8px;
+            border-radius: 8px;
+            margin: 10px 0;
+            color: #fff
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns:1fr 1fr;
+            gap: 16px
+        }
+
+        table.meta td {
+            padding: 4px 8px
+        }
+
+        .card {
+            border: 1px solid #253349;
+            padding: 12px;
+            border-radius: 10px
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>گام نهایی — خروجی پروژه</h1>
+    <a th:href="@{/projects}">بازگشت</a>
+</div>
+
+<div class="container">
+    <div th:if="${msg}" class="ok" th:text="${msg}"></div>
+    <div th:if="${err}" class="err" th:text="${err}"></div>
+
+    <div class="card">
+        <h2>خلاصه پروژه</h2>
+        <table class="meta">
+            <tr>
+                <td>نام پروژه:</td>
+                <td th:text="${project.projectName}">demo</td>
+            </tr>
+            <tr>
+                <td>شرکت/گروه:</td>
+                <td th:text="${project.companyName}">company</td>
+            </tr>
+            <tr>
+                <td>نسخه جاوا:</td>
+                <td th:text="${project.javaVersion}">17</td>
+            </tr>
+            <tr>
+                <td>پکیج‌ها:</td>
+                <td>
+          <span th:each="p : ${project.packages}" class="tag" style="margin-inline-end:6px"
+                th:text="${p}">service</span>
+                </td>
+            </tr>
+        </table>
+
+        <h3 style="margin-top:12px;">کنترلرها و Endpointها</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>کنترلر</th>
+                <th>Base Path</th>
+                <th>Endpoint</th>
+                <th>متد</th>
+                <th>پارامترها</th>
+                <th>خروجی</th>
+            </tr>
+            </thead>
+            <tbody>
+            <th:block th:each="c : ${project.controllers}">
+                <tr>
+                    <td th:text="${c.name}"
+                        th:rowspan="${(c.endpoints != null and !#lists.isEmpty(c.endpoints)) ? 1 + #lists.size(c.endpoints) : 2}">
+                        Name
+                    </td>
+                    <td th:text="${c.basePath}"
+                        th:rowspan="${(c.endpoints != null and !#lists.isEmpty(c.endpoints)) ? 1 + #lists.size(c.endpoints) : 2}">
+                        /api/x
+                    </td>
+                    <td colspan="4"><i>Endpoints</i></td>
+                </tr>
+                <tr th:each="e : ${c.endpoints}">
+                    <td th:text="${e.path}">/x</td>
+                    <td th:text="${e.httpMethod}">GET</td>
+                    <td>
+            <span th:each="p : ${e.params}" class="tag"
+                  th:text="${p.name + ':' + p.in + ':' + p.javaType + (p.required ? ' (req)' : '')}"
+                  style="margin-inline-end:6px">id:PATH:Long</span>
+                    </td>
+                    <td>
+            <span th:if="${e.responseFields != null and !#lists.isEmpty(e.responseFields)}"
+                  th:text="${e.responseList ? 'List<' + e.name + 'Response>' : e.name + 'Response'}">MyResponse</span>
+                        <span th:if="${e.responseFields == null or #lists.isEmpty(e.responseFields)}"
+                              th:text="${e.responseList ? 'List<' + e.responseType + '>' : e.responseType}">String</span>
+                    </td>
+                </tr>
+                <tr th:if="${c.endpoints == null or #lists.isEmpty(c.endpoints)}">
+                    <td colspan="4" class="muted">اندپوینتی تعریف نشده.</td>
+                </tr>
+            </th:block>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+        <!-- دانلود ZIP -->
+        <div class="card">
+            <h3>دانلود ZIP</h3>
+            <p class="muted">یک بستهٔ کامل Maven (با سورس/منابع) تولید و دانلود می‌شود.</p>
+            <form th:action="@{'/wizard/' + ${project.id} + '/final/zip'}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn">دانلود فایل ZIP</button>
+            </form>
+        </div>
+
+        <!-- ذخیره روی دیسک -->
+        <div class="card">
+            <h3>ذخیره در مسیر محلی</h3>
+            <p class="muted">پروژه در مسیر انتخابی روی همان ماشینی که اپ در حال اجراست ایجاد می‌شود.</p>
+            <form th:action="@{'/wizard/' + ${project.id} + '/final/save'}" method="post">
+                <label>مسیر هدف</label>
+                <input type="text" name="targetPath" placeholder="/home/user/projects یا C:\work\projects" required/>
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <div style="margin-top:8px;">
+                    <button type="submit" class="btn btn-secondary">ذخیره روی دیسک</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>

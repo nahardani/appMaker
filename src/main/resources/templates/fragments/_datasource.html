@@ -1,0 +1,51 @@
+<!— DataSource / Database —>
+<div th:fragment="datasource(project)">
+    <div class="card">
+        <div class="card-head"><h3>اتصال دیتابیس</h3></div>
+
+        <form class="form" th:action="@{'/wizard/' + ${project.id} + '/settings/datasource'}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+            <div class="grid-3">
+                <div>
+                    <label>نوع دیتابیس</label>
+                    <select name="db.type">
+                        <option value="H2">H2</option>
+                        <option value="POSTGRES">PostgreSQL</option>
+                        <option value="MYSQL">MySQL / MariaDB</option>
+                        <option value="ORACLE">Oracle</option>
+                        <option value="MSSQL">SQL Server</option>
+                    </select>
+                </div>
+                <div>
+                    <label>URL</label>
+                    <input type="text" name="db.url" placeholder="jdbc:postgresql://localhost:5432/app"/>
+                </div>
+                <div>
+                    <label>Username</label>
+                    <input type="text" name="db.username" placeholder="dbuser"/>
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div>
+                    <label>Password</label>
+                    <input type="password" name="db.password" placeholder="********"/>
+                </div>
+                <div>
+                    <label>Pool Size (max)</label>
+                    <input type="number" name="db.pool.max" placeholder="10" min="1"/>
+                </div>
+                <div>
+                    <label>Schema (اختیاری)</label>
+                    <input type="text" name="db.schema" placeholder="public"/>
+                </div>
+            </div>
+
+            <div class="actions" style="justify-content:flex-end">
+                <button class="btn" type="button">تست اتصال</button>
+                <button class="btn btn-primary" type="submit">ذخیره دیتابیس</button>
+            </div>
+        </form>
+    </div>
+</div>

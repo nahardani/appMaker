@@ -1,0 +1,135 @@
+:root {
+    --bg: #0b132b;
+    --panel: #1c2541;
+    --accent: #5bc0be;
+    --text: #e0fbfc;
+}
+
+body {
+    font-family: sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.header {
+    padding: 16px 24px;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.container {
+    max-width: 980px;
+    margin: 24px auto;
+    background: #132238;
+    padding: 24px;
+    border-radius: 12px;
+}
+
+a, button, .btn {
+    background: var(--accent);
+    color: #001219;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+input[type=text], input[type=password], select {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0 12px 0;
+    border-radius: 8px;
+    border: 1px solid #2c3e50;
+    background: #0e1a2b;
+    color: var(--text);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #253349;
+}
+
+.badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #0fa3b1;
+    color: #001219;
+    font-size: 12px;
+}
+
+.help {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: -8px;
+    margin-bottom: 12px;
+}
+
+/* --- unified topbar --- */
+.topbar {
+    background: #132238; /* هم‌رنگ بالای صفحهٔ نسخهٔ جاوا */
+    border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.topbar__inner {
+    max-width: 1150px;
+    margin: 0 auto;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.topbar__title {
+    color: #e6f6ff;
+    font-weight: 800;
+    font-size: 20px;
+}
+
+.topbar__actions .btn {
+    margin: 0
+}
+
+/* === Fix: dark select dropdown contrast === */
+select {
+    color: #e6f3ff; /* رنگ متن انتخاب‌شده */
+    background: #142333; /* پس‌زمینه خود select */
+    border: 1px solid #2a3a4c;
+    height: 40px;
+    line-height: 40px;
+    border-radius: 10px;
+    direction: rtl;
+}
+
+select:focus {
+    outline: 2px solid #33c0b5;
+    outline-offset: 0;
+}
+
+/* رنگ گزینه‌های منوی بازشونده (dropdown) */
+select option {
+    color: #e6f3ff !important;
+    background: #0f1b2b !important; /* پس‌زمینه لیست بازشونده */
+}
+
+/* برای برخی مرورگرها که از appearance پیش‌فرض استفاده می‌کنند */
+select::-ms-expand {
+    display: none;
+}
+
+/* IE/Edge قدیمی */

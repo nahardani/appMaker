@@ -1,0 +1,167 @@
+<div th:fragment="aiBox(project)">
+    <div class="card">
+        <div class="card-head"><h3>تولید کد با هوش مصنوعی</h3></div>
+        <form id="aiForm" onsubmit="return doGenerate(event)">
+            <input type="hidden" id="projectRoot" th:value="${project.rootPath}"/>
+            <input type="hidden" id="projectId" th:value="${project.id}"/>
+
+            <div class="grid-3">
+
+                <div>
+                    <label>Provider</label>
+                    <select id="provider">
+                        <option value="openai">OpenAI</option>
+                        <option value="ollama">Ollama</option>
+                        <option value="huggingface">Hugging Face</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Model (اختیاری)</label>
+                    <input id="model" placeholder="gpt-4o-mini / llama3.1:8b / openai/gpt-oss-120b:fireworks-ai"/>
+                </div>
+            </div>
+            <label>Prompt</label>
+            <textarea id="prompt" rows="8" placeholder="توضیح نیازمندی را بنویس..."></textarea>
+            <div class="actions" style="justify-content:flex-end">
+                <button id="btnGen" type="submit" class="btn">پیش‌نمایش (Dry-run)</button>
+                <button id="btnApply" type="button" class="btn btn-primary" onclick="doApply()">اعمال به پروژه</button>
+            </div>
+
+            <div id="aiStatus" class="muted" style="margin-top:8px; display:none;"></div>
+
+        </form>
+
+        <h4 style="margin-top:12px">پیش‌نمایش فایل‌ها</h4>
+        <pre id="raw" class="muted" style="white-space:pre-wrap"></pre>
+        <div id="files"></div>
+    </div>
+
+    <script>
+        // متغیر سراسری (از بین نرود حتی اگر اسکریپت دوباره بارگذاری شود)
+        window.generated ??= null;
+
+        function setBusy(isBusy, msg = ''){
+            const btnGen = document.getElementById('btnGen');
+            const btnApply = document.getElementById('btnApply');
+            const status = document.getElementById('aiStatus');
+            if (btnGen) btnGen.disabled = isBusy;
+            if (btnApply) btnApply.disabled = isBusy;
+            if (status){
+                status.style.display = isBusy ? 'block' : 'none';
+                status.textContent = msg || '';
+            }
+        }
+
+        async function doGenerate(e){
+            if (e) e.preventDefault();
+            setBusy(true, 'در حال تولید کد توسط AI... لطفاً منتظر بمانید.');
+
+            const payload = {
+                projectId: document.getElementById('projectId').value,
+                provider: document.getElementById('provider').value,
+                model: document.getElementById('model').value,
+                prompt: document.getElementById('prompt').value,
+                basePackage: 'com.company.app',
+                feature: 'generated',
+                basePath:  '/api/generated',
+                javaVersion: 17
+            };
+
+
+            const rawPre = document.getElementById('raw');
+            const filesDiv = document.getElementById('files');
+
+            // پاکسازی قبلی
+            if (rawPre) rawPre.textContent = '';
+            if (filesDiv) filesDiv.innerHTML = '';
+
+            try {
+                const r = await fetch('/api/ai/generate', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                // تلاش برای خواندن JSON؛ اگر شکست خورد متن را بخوان
+                let data;
+                const ct = r.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                    data = await r.json();
+                } else {
+                    const txt = await r.text();
+                    data = { raw: txt }; // حداقل خام را نگه داریم
+                }
+
+                if (!r.ok){
+                    window.generated = null;
+                    if (rawPre) rawPre.textContent = (typeof data === 'string') ? data : (data.error || '❌ خطا در تولید');
+                    if (filesDiv) filesDiv.innerHTML = '';
+                    return false;
+                }
+
+                // اعتبارسنجی ساختار انتظار
+                const files = Array.isArray(data.files) ? data.files : [];
+                window.generated = { raw: data.raw || '', files };
+
+                if (rawPre) rawPre.textContent = window.generated.raw || '';
+                renderFiles(files);
+                return false;
+
+            } catch (err){
+                window.generated = null;
+                if (rawPre) rawPre.textContent = '❌ خطای شبکه/پردازش: ' + (err?.message || err);
+                if (filesDiv) filesDiv.innerHTML = '';
+                return false;
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        function renderFiles(files){
+            const c = document.getElementById('files');
+            if (!c) return;
+            c.innerHTML = '';
+            files.forEach(f => {
+                const pre = document.createElement('pre');
+                pre.style.whiteSpace = 'pre-wrap';
+                pre.style.direction = 'ltr';
+                // اگر سرور HTML escape نکرده، ما هم همونطور متن خام میذاریم
+                pre.textContent = `# ${f.path}\n\n${f.content}`;
+                c.appendChild(pre);
+            });
+        }
+
+        async function doApply(){
+            const g = window.generated;
+            if (!g || !Array.isArray(g.files) || !g.files.length){
+                alert('ابتدا «پیش‌نمایش (Dry-run)» بگیرید تا فایل‌ها تولید شوند.');
+                return;
+            }
+
+            setBusy(true, 'در حال اعمال فایل‌ها روی پروژه...');
+
+            // اگر طبق پیشنهاد جدید، با projectId کار می‌کنی:
+            const projectIdEl = document.getElementById('projectId');
+            const projectRootEl = document.getElementById('projectRoot'); // در صورت استفاده از مسیر مستقیم
+
+            const payload = projectIdEl
+                ? { projectId: projectIdEl.value, files: g.files }
+                : { projectRoot: projectRootEl?.value || '', files: g.files };
+
+            try{
+                const r = await fetch('/api/ai/apply', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const txt = await r.text();
+                alert(txt);
+            } catch(err){
+                alert('❌ خطا در اعمال: ' + (err?.message || err));
+            } finally {
+                setBusy(false);
+            }
+        }
+    </script>
+
+</div>
