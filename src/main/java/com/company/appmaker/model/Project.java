@@ -3,7 +3,6 @@ package com.company.appmaker.model;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-
 import com.company.appmaker.model.coctroller.ControllerDef;
 import com.company.appmaker.model.externalApi.ExternalApisSettings;
 import com.company.appmaker.model.l18n.I18nSettings;
@@ -12,6 +11,7 @@ import com.company.appmaker.model.profile.ProfileSettings;
 import com.company.appmaker.model.security.SecuritySettings;
 import com.company.appmaker.model.swagger.SwaggerSettings;
 import jakarta.persistence.Column;
+import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -27,84 +27,15 @@ public class Project {
     private List<ControllerDef> controllers = new ArrayList<>();
     private SecuritySettings security = new SecuritySettings();
     private SwaggerSettings swagger = new SwaggerSettings();
-    // com.company.appmaker.model.Project
     private ProfileSettings profiles;
-
-    public ProfileSettings getProfiles() {
-        return profiles;
-    }
-
-    public void setProfiles(ProfileSettings profiles) {
-        this.profiles = profiles;
-    }
-
-    // com.company.appmaker.model.Project
+    private MicroserviceSettings ms = new MicroserviceSettings();
     private I18nSettings i18n;
-
-    public I18nSettings getI18n() {
-        return i18n;
-    }
-
-    public void setI18n(I18nSettings i18n) {
-        this.i18n = i18n;
-    }
-
-    // com.company.appmaker.model.Project
     private ExternalApisSettings externalApis;
-
-    public ExternalApisSettings getExternalApis() {
-        return externalApis;
-    }
-
-    public void setExternalApis(ExternalApisSettings s) {
-        this.externalApis = s;
-    }
-
-
-    // ...
     private LoggingSettings logging;
-
-    public LoggingSettings getLogging() {
-        return logging;
-    }
-
-    public void setLogging(LoggingSettings logging) {
-        this.logging = logging;
-    }
-
-
     private ConstantsSettings constants;
-
-    public ConstantsSettings getConstants() {
-        return constants;
-    }
-
-    public void setConstants(ConstantsSettings constants) {
-        this.constants = constants;
-    }
-
     private java.util.List<GeneratedFile> generatedFiles = new java.util.ArrayList<>();
-
-    public java.util.List<GeneratedFile> getGeneratedFiles() {
-        if (generatedFiles == null) generatedFiles = new java.util.ArrayList<>();
-        return generatedFiles;
-    }
-
-    public void setGeneratedFiles(List<GeneratedFile> files) {
-        this.generatedFiles = files;
-    }
-
     @Column(name = "root_path", nullable = false)
     private String rootPath;
-
-    public String getRootPath() {
-        return rootPath;
-    }
-
-    public void setRootPath(String rootPath) {
-        this.rootPath = rootPath;
-    }
-
     public static class GeneratedFile {
         private String path;    // e.g. src/main/java/com/example/controller/FooController.java
         private String content; // file content
@@ -133,31 +64,13 @@ public class Project {
             this.content = c;
         }
     }
-
-    public Project() {
-    }
+    public Project() {}
 
 
     public Project(String projectName, String companyName) {
         this.projectName = projectName;
         this.companyName = companyName;
         this.createdAt = Instant.now();
-    }
-
-    public SwaggerSettings getSwagger() {
-        return swagger;
-    }
-
-    public void setSwagger(SwaggerSettings swagger) {
-        this.swagger = swagger;
-    }
-
-    public SecuritySettings getSecurity() {
-        return security;
-    }
-
-    public void setSecurity(SecuritySettings security) {
-        this.security = security;
     }
 
     public String getId() {
@@ -200,19 +113,99 @@ public class Project {
         this.javaVersion = javaVersion;
     }
 
-    public java.util.List<String> getPackages() {
+    public List<String> getPackages() {
         return packages;
     }
 
-    public void setPackages(java.util.List<String> packages) {
+    public void setPackages(List<String> packages) {
         this.packages = packages;
     }
 
-    public java.util.List<ControllerDef> getControllers() {
+    public List<ControllerDef> getControllers() {
         return controllers;
     }
 
-    public void setControllers(java.util.List<ControllerDef> controllers) {
+    public void setControllers(List<ControllerDef> controllers) {
         this.controllers = controllers;
+    }
+
+    public SecuritySettings getSecurity() {
+        return security;
+    }
+
+    public void setSecurity(SecuritySettings security) {
+        this.security = security;
+    }
+
+    public SwaggerSettings getSwagger() {
+        return swagger;
+    }
+
+    public void setSwagger(SwaggerSettings swagger) {
+        this.swagger = swagger;
+    }
+
+    public ProfileSettings getProfiles() {
+        return profiles;
+    }
+
+    public void setProfiles(ProfileSettings profiles) {
+        this.profiles = profiles;
+    }
+
+    public MicroserviceSettings getMs() {
+        return ms;
+    }
+
+    public void setMs(MicroserviceSettings ms) {
+        this.ms = ms;
+    }
+
+    public I18nSettings getI18n() {
+        return i18n;
+    }
+
+    public void setI18n(I18nSettings i18n) {
+        this.i18n = i18n;
+    }
+
+    public ExternalApisSettings getExternalApis() {
+        return externalApis;
+    }
+
+    public void setExternalApis(ExternalApisSettings externalApis) {
+        this.externalApis = externalApis;
+    }
+
+    public LoggingSettings getLogging() {
+        return logging;
+    }
+
+    public void setLogging(LoggingSettings logging) {
+        this.logging = logging;
+    }
+
+    public ConstantsSettings getConstants() {
+        return constants;
+    }
+
+    public void setConstants(ConstantsSettings constants) {
+        this.constants = constants;
+    }
+
+    public List<GeneratedFile> getGeneratedFiles() {
+        return generatedFiles;
+    }
+
+    public void setGeneratedFiles(List<GeneratedFile> generatedFiles) {
+        this.generatedFiles = generatedFiles;
+    }
+
+    public String getRootPath() {
+        return rootPath;
+    }
+
+    public void setRootPath(String rootPath) {
+        this.rootPath = rootPath;
     }
 }

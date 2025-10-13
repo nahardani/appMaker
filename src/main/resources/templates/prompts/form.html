@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="${prompt.id==null ? 'پرامپت جدید' : 'ویرایش پرامپت'}">پرامپت</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+    <style>
+        .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+        textarea{width:100%;min-height:320px;direction:ltr}
+        pre{white-space:pre-wrap;direction:ltr;background:#0e1523;color:#cde2ff;padding:8px;border-radius:8px}
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1 th:text="${prompt.id==null ? 'پرامپت جدید' : 'ویرایش پرامپت'}">پرامپت</h1>
+    <a th:href="@{/prompts}">بازگشت</a>
+</div>
+
+<div class="container">
+    <form class="card" th:action="${prompt.id==null} ? @{/prompts} : @{'/prompts/' + ${prompt.id}}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+        <div class="grid">
+            <div>
+                <label>نام</label>
+                <input name="name" th:value="${prompt.name}" required/>
+            </div>
+
+            <div>
+                <label>دسته</label>
+                <select name="category" required>
+                    <option th:each="c : ${categories}"
+                            th:value="${c}" th:text="${c}"
+                            th:selected="${c == prompt.category}">controller</option>
+                </select>
+            </div>
+
+            <div>
+                <label>هدف</label>
+                <select name="target" required>
+                    <option th:each="t : ${targets}"
+                            th:value="${t}" th:text="${t}"
+                            th:selected="${t == prompt.target}">CONTROLLER</option>
+                </select>
+            </div>
+
+            <div>
+                <label>اسکوپ</label>
+                <select name="scope">
+                    <option th:each="s : ${scopes}"
+                            th:value="${s}" th:text="${s}"
+                            th:selected="${s == prompt.scope}">GLOBAL</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Project ID (اگر PROJECT)</label>
+                <input name="projectId" th:value="${prompt.projectId}"/>
+            </div>
+
+            <div>
+                <label>Java Min</label>
+                <select name="javaMin">
+                    <option th:each="v : ${javaVersions}"
+                            th:value="${v}" th:text="${v}"
+                            th:selected="${v == prompt.javaMin}">17</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Java Max</label>
+                <select name="javaMax">
+                    <option th:each="v : ${javaVersions}"
+                            th:value="${v}" th:text="${v}"
+                            th:selected="${v == prompt.javaMax}">21</option>
+                </select>
+            </div>
+
+            <div>
+                <label>وضعیت</label>
+                <select name="status">
+                    <option th:each="st : ${statuses}"
+                            th:value="${st}" th:text="${st}"
+                            th:selected="${st == prompt.status}">ACTIVE</option>
+                </select>
+            </div>
+
+            <div>
+                <label>برچسب‌ها (comma)</label>
+                <input name="tags" th:value="${prompt.tags}" placeholder="rest,jpa,validation"/>
+            </div>
+        </div>
+
+
+        <div style="margin-top:12px">
+            <label>بدنهٔ پرامپت (با {{basePackage}}, {{feature}}, {{basePath}}, {{javaVersion}} و …)</label>
+            <textarea name="body" th:text="${prompt.body}" placeholder="..."></textarea>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end;margin-top:8px;">
+            <button type="button" class="btn" onclick="previewRender()">پیش‌نمایش رندر</button>
+            <button class="btn btn-primary" type="submit">ذخیره</button>
+        </div>
+    </form>
+
+    <!-- پیش‌نمایش -->
+    <div id="previewBox" class="card" style="display:none;margin-top:12px;">
+        <h3 style="margin:0 0 8px;">پیش‌نمایش رندر</h3>
+        <form onsubmit="return false" class="grid">
+            <div><label>basePackage</label><input id="pvBasePackage" value="com.company.app"/></div>
+            <div><label>feature</label><input id="pvFeature" value="orders"/></div>
+            <div><label>basePath</label><input id="pvBasePath" value="/api/orders"/></div>
+            <div><label>javaVersion</label><input id="pvJava" value="17"/></div>
+            <div><label>projectId</label><input id="pvPid" value="demo"/></div>
+            <div style="align-self:end">
+                <button class="btn" onclick="previewRender()">به‌روزرسانی</button>
+            </div>
+        </form>
+        <pre id="previewOut" class="muted"></pre>
+    </div>
+</div>
+
+<script>
+    function previewRender(){
+        const body = document.querySelector('textarea[name=body]').value;
+        const payload = {
+            body: body,
+            vars: {
+                basePackage: document.getElementById('pvBasePackage').value,
+                feature:     document.getElementById('pvFeature').value,
+                basePath:    document.getElementById('pvBasePath').value,
+                javaVersion: document.getElementById('pvJava').value,
+                projectId:   document.getElementById('pvPid').value
+            }
+        };
+        fetch('/prompts/render', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r=>r.text()).then(t=>{
+            document.getElementById('previewBox').style.display='block';
+            document.getElementById('previewOut').textContent = t;
+        }).catch(()=>alert('خطا در پیش‌نمایش'));
+    }
+</script>
+</body>
+</html>

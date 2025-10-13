@@ -54,6 +54,16 @@ input[type=text], input[type=password], select {
     color: var(--text);
 }
 
+input {
+    width: 90%;
+    padding: 10px;
+    margin: 6px 0 12px 0;
+    border-radius: 8px;
+    border: 1px solid #2c3e50;
+    background: #0e1a2b;
+    color: var(--text);
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

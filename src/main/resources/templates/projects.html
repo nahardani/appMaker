@@ -1,87 +1,120 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"/>
     <title>پروژه‌ها</title>
     <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+    <style>.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}</style>
 </head>
 <body>
-
-<!-- هدر (در صورت داشتن فرگمنت مشترک) -->
-<th:block th:replace="fragments/_header :: topbar(
-        title='فهرست / ایجاد پروژه',
-        project=${null})"></th:block>
+<div class="header">
+    <h1>پروژه‌ها</h1>
+    <a th:href="@{/projects}">بازگشت</a>
+</div>
 
 <div class="container">
 
-    <!-- فهرست پروژه‌ها (بالا) -->
-    <div class="card">
-        <div class="card-head"><h3>فهرست پروژه‌ها</h3></div>
+    <form class="card" th:action="@{/projects}" method="post" th:object="${project}">
+        <h2>اطلاعات پایه</h2>
+        <div class="grid-3">
+            <div>
+                <label>نام پروژه</label>
+                <input th:field="*{projectName}" placeholder="orders-service" required/>
+            </div>
+            <div>
+                <label>نام شرکت/گروه</label>
+                <input th:field="*{companyName}" placeholder="com.company" required/>
+            </div>
+            <div>
+                <label>نسخه جاوا</label>
+                <select th:field="*{javaVersion}">
+                    <option value="8">8</option>
+                    <option value="11">11</option>
+                    <option selected value="17">17</option>
+                    <option value="21">21</option>
+                </select>
+            </div>
+        </div>
 
-        <table class="table">
-            <thead>
-            <tr>
-                <th style="text-align:right;">نام پروژه</th>
-                <th style="text-align:right;">نام شرکت</th>
-                <th style="text-align:right;">نسخهٔ جاوا</th>
-                <th style="text-align:right;">تاریخ ایجاد</th>
-                <th style="width:1%"></th>
-            </tr>
-            </thead>
+        <h2 style="margin-top:16px;">Service Profile (Microservice)</h2>
+        <div class="grid-3">
+            <div>
+                <label>Service name</label>
+                <input th:field="*{ms.serviceName}" placeholder="orders" required/>
+            </div>
+            <div>
+                <label>Base package</label>
+                <input th:field="*{ms.basePackage}" placeholder="com.company.orders" required/>
+            </div>
+            <div>
+                <label>Base path</label>
+                <input th:field="*{ms.basePath}" placeholder="/api/orders" required/>
+            </div>
+            <div>
+                <label>API version</label>
+                <input th:field="*{ms.apiVersion}" placeholder="v1"/>
+            </div>
+            <div>
+                <label>Java</label>
+                <select th:field="*{ms.javaVersion}">
+                    <option value="8">8</option>
+                    <option value="11">11</option>
+                    <option selected value="17">17</option>
+                    <option value="21">21</option>
+                </select>
+            </div>
+            <div>
+                <label>Persistence</label>
+                <select th:field="*{ms.useMongo}">
+                    <option th:value="true">MongoDB</option>
+                    <option th:value="false" disabled>JPA (later)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-3" style="margin-top:8px">
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.useUlidIds}"/> Use ULID IDs</div>
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableActuator}"/> Actuator</div>
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableOpenApi}"/> OpenAPI</div>
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableValidation}"/> Validation</div>
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableMetrics}"/> Metrics</div>
+            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableSecurityBasic}"/> Basic Security</div>
+        </div>
+
+        <div class="grid-3" style="margin-top:8px">
+            <input type="checkbox" th:field="*{ms.addDockerfile}"/> Dockerfile
+            <input type="checkbox" th:field="*{ms.addCompose}"/> docker-compose (Mongo)
+            <input type="checkbox" th:field="*{ms.enableTestcontainers}"/> Testcontainers
+        </div>
+
+        <div class="actions" style="justify-content:flex-end;margin-top:12px;">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="btn btn-primary">ذخیره</button>
+        </div>
+    </form>
+
+    <!-- فهرست پروژه‌ها (اگر لازم است) -->
+    <div class="card" style="margin-top:16px;" th:if="${projects != null}">
+        <h3>لیست پروژه‌ها</h3>
+        <table>
+            <thead><tr><th>نام</th><th>گروه</th><th>سرویس</th><th>Java</th><th></th></tr></thead>
             <tbody>
-            <tr th:each="p : ${projects}">
-                <td th:text="${p.projectName}">project</td>
-                <td th:text="${p.companyName}">company</td>
-                <td th:text="${p.javaVersion}">17</td>
-                <td th:text="${#dates.format(p.createdAt, 'yyyy/MM/dd HH:mm')}">—</td>
-                <td class="actions" style="white-space:nowrap">
-                    <!-- ویرایش → مستقیم به گام Packages -->
-                    <a th:href="@{'/wizard/' + ${p.id} + '/packages'}" class="btn btn-secondary">ادامه/ویرایش</a>
-
-                    <form th:action="@{'/projects/' + ${p.id} + '/delete'}" method="post" style="display:inline"
-                          th:attr="onsubmit=|return confirm('پروژه «${p.projectName}» حذف شود؟')|">
+            <tr th:each="pr : ${projects}">
+                <td th:text="${pr.projectName}">orders-service</td>
+                <td th:text="${pr.companyName}">com.company</td>
+                <td th:text="${pr.ms != null ? pr.ms.serviceName : '—'}">orders</td>
+                <td th:text="${pr.ms != null ? pr.ms.javaVersion : pr.javaVersion}">17</td>
+                <td>
+                    <a th:href="@{'/wizard/' + ${pr.id} + '/packages'}" class="btn btn-secondary">ادامه/ویرایش</a>
+                    <form th:action="@{'/projects/' + ${pr.id} + '/delete'}" method="post" style="display:inline"
+                          th:attr="onsubmit=|return confirm('پروژه «${pr.projectName}» حذف شود؟')|">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                         <button type="submit" class="btn btn-danger">حذف</button>
                     </form>
                 </td>
             </tr>
-            <tr th:if="${projects == null or #lists.isEmpty(projects)}">
-                <td colspan="5" class="muted">هنوز پروژه‌ای ثبت نشده است.</td>
-            </tr>
             </tbody>
         </table>
-    </div>
-
-    <!-- ایجاد پروژه جدید (پایین) -->
-    <div class="card">
-        <div class="card-head"><h3>پروژهٔ جدید</h3></div>
-
-        <form th:action="@{/projects}" method="post" class="form">
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-
-            <div class="grid-3">
-                <div>
-                    <label>نام پروژه</label>
-                    <input type="text" name="projectName" required placeholder="مثلاً حسابداری"/>
-                </div>
-                <div>
-                    <label>نام شرکت</label>
-                    <input type="text" name="companyName" required placeholder="مثلاً behsazan"/>
-                </div>
-                <div>
-                    <label>نسخهٔ جاوا</label>
-                    <select name="javaVersion">
-                        <option th:each="v : ${javaVersions}" th:value="${v}" th:text="${v}"
-                                th:selected="${v == '17'}">17</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="actions" style="justify-content:flex-end">
-                <button type="submit" class="btn btn-primary">ثبت پروژه</button>
-            </div>
-        </form>
     </div>
 
 </div>

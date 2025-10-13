@@ -1183,6 +1183,30 @@ public class ScaffoldHelpers {
     }
 
 
+    public static String toDependenciesXml(List<String> coords) {
+        StringBuilder sb = new StringBuilder();
+        for (String c : coords) {
+            // شکل‌های قابل‌قبول:
+            // groupId:artifactId
+            // groupId:artifactId:version
+            String[] parts = c.split(":");
+            if (parts.length < 2) continue;
+            String g = parts[0], a = parts[1];
+            String v = (parts.length >= 3) ? parts[2] : null;
+
+            sb.append("    <dependency>\n")
+                    .append("      <groupId>").append(g).append("</groupId>\n")
+                    .append("      <artifactId>").append(a).append("</artifactId>\n");
+            if (v != null && !v.isBlank()) {
+                sb.append("      <version>").append(v).append("</version>\n");
+            }
+            sb.append("    </dependency>\n");
+        }
+        // تمیز: داخل <dependencies> در خود template قرار می‌گیرد
+        return sb.toString();
+    }
+
+
 
 
 }
