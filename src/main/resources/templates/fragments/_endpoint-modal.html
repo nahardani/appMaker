@@ -1,0 +1,56 @@
+<!-- fragments/_endpoint-modal.html -->
+<div th:fragment="endpointModal">
+    <div id="epModal" class="modal" style="display:none">
+        <div class="modal-content" style="max-width:880px">
+            <div class="modal-head">
+                <h3>مدیریت اندپوینت‌های کنترلر</h3>
+                <button type="button" class="icon-btn" onclick="closeEpModal()">
+                    ✕
+                </button>
+            </div>
+
+            <div class="muted" id="epModalCtrlLabel" style="margin-top:-6px"></div>
+
+            <!-- لیست اندپوینت‌ها -->
+            <div id="epList" class="table like-card" style="margin-top:12px"></div>
+
+            <hr style="opacity:.15;margin:16px 0">
+
+            <!-- فرم افزودن/ویرایش -->
+            <form id="epForm" onsubmit="return saveEndpoint(event)">
+                <input type="hidden" id="epIndex"> <!-- برای ویرایش (null یعنی افزودن) -->
+                <div class="grid-3">
+                    <div>
+                        <label>نام متد (Endpoint name)</label>
+                        <input id="epNameNew" placeholder="getById"/>
+                    </div>
+                    <div>
+                        <label>HTTP Method</label>
+                        <select id="epMethod">
+                            <option>GET</option><option>POST</option>
+                            <option>PUT</option><option>PATCH</option><option>DELETE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Path (نسبی)</label>
+                        <input id="epPath" placeholder="customers/{id}"/>
+                    </div>
+                </div>
+                <div class="actions" style="justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button type="button" class="btn" onclick="resetEpForm()">انصراف</button>
+                    <button type="submit" class="btn btn-primary">ذخیره</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60}
+        .modal-content{margin:7vh auto;background:#0f1520;border:1px solid #263240;border-radius:14px;padding:14px 16px}
+        .modal-head{display:flex;align-items:center;gap:8px}
+        .table.like-card .row{display:grid;grid-template-columns:48px 1fr 110px 220px 120px;gap:8px;align-items:center;
+            padding:8px;border:1px solid #263240;border-radius:10px;margin:6px 0}
+        .table.like-card .row .muted{opacity:.8}
+        .chip{background:#172133;border:1px solid #2a3a54;border-radius:999px;padding:2px 8px;font-size:12px}
+    </style>
+</div>

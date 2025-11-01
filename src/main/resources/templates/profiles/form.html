@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>پروفایل میکروسرویس</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+    <style>
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .muted{opacity:.8;font-size:12px}
+        .card h3{margin:8px 0 4px}
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>پروفایل میکروسرویس</h1>
+    <a th:href="@{/profiles}">بازگشت</a>
+</div>
+
+<div class="container">
+    <form class="card" th:action="${profile.id} ? @{'/profiles/' + ${profile.id}} : @{/profiles}"
+          method="post" th:object="${profile}">
+        <h3>اطلاعات کلی</h3>
+        <div class="grid-2">
+            <div>
+                <label>نام نمایشی</label>
+                <input th:field="*{name}" placeholder="Web + MongoDB (J17)" required/>
+            </div>
+            <div>
+                <label>Service name</label>
+                <input th:field="*{serviceName}" placeholder="orders"/>
+                <div class="muted">اگر خالی بماند، از نام پروژه برای ساخت استفاده می‌شود.</div>
+            </div>
+
+            <div>
+                <label>Base package (اختیاری)</label>
+                <input th:field="*{basePackage}" placeholder="خالی = استفاده از project.company + '.' + service"/>
+                <div class="muted">مثال: <code>com.company.orders</code></div>
+            </div>
+            <div>
+                <label>Base path (اختیاری)</label>
+                <input th:field="*{basePath}" placeholder="خالی = /api/{service}"/>
+                <div class="muted">مثال: <code>/api/orders</code></div>
+            </div>
+
+            <div>
+                <label>API version (اختیاری)</label>
+                <input th:field="*{apiVersion}" placeholder="v1"/>
+            </div>
+            <div>
+                <label>Java (اختیاری)</label>
+                <select th:field="*{javaVersion}">
+                    <option value="">— ارث از پروژه —</option>
+                    <option value="8">8</option>
+                    <option value="11">11</option>
+                    <option value="17">17</option>
+                    <option value="21">21</option>
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin-top:12px;">گزینه‌ها</h3>
+        <div class="grid-2">
+            <label><input class="customCheck" type="checkbox" th:field="*{useMongo}"/> MongoDB</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{useUlidIds}"/> ULID IDs</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableActuator}"/> Actuator</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableOpenApi}"/> OpenAPI</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableValidation}"/> Validation</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableMetrics}"/> Metrics</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableSecurityBasic}"/> Basic Security</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{addDockerfile}"/> Dockerfile</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{addCompose}"/> docker-compose</label>
+            <label><input class="customCheck"  type="checkbox" th:field="*{enableTestcontainers}"/> Testcontainers</label>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end;margin-top:12px;">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button class="btn btn-primary" type="submit">ذخیره</button>
+        </div>
+    </form>
+</div>
+</body>
+</html>

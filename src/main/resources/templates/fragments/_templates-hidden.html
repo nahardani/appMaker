@@ -1,0 +1,73 @@
+<!— fragments/_templates-hidden.html —>
+<table th:fragment="hiddenTemplates" class="hidden">
+    <tbody>
+    <tr id="paramRowTemplate">
+        <td><input type="text" name="__NAME__" placeholder="id / q / X-Trace"/></td>
+        <td>
+            <select name="__IN__">
+                <option value="PATH">PATH</option>
+                <option value="QUERY">QUERY</option>
+                <option value="HEADER">HEADER</option>
+            </select>
+        </td>
+        <td>
+            <select name="__TYPE__">
+                <option>String</option><option>Long</option><option>Integer</option><option>Double</option>
+                <option>Boolean</option><option>UUID</option><option>LocalDate</option><option>LocalDateTime</option>
+            </select>
+        </td>
+        <td class="center"><input type="checkbox" name="__REQ__"/></td>
+        <td><button class="btn btn-danger btn-sm" type="button" onclick="removeParamRow(this)">حذف</button></td>
+    </tr>
+
+    <tr id="fieldRowTemplate">
+        <td><input type="text" placeholder="fieldName"/></td>
+        <td>
+            <select>
+                <option>String</option><option>Long</option><option>Integer</option><option>Double</option>
+                <option>Boolean</option><option>UUID</option><option>LocalDate</option><option>LocalDateTime</option>
+            </select>
+        </td>
+        <td class="center"><input type="checkbox"/></td>
+        <td><button class="btn btn-danger btn-sm" type="button" onclick="removeRow(this)">حذف</button></td>
+    </tr>
+
+    <tr id="respPartRowTemplate">
+        <td><input type="text" placeholder="result / items / error"/></td>
+        <td>
+            <select class="rp-container">
+                <option value="SINGLE">SINGLE</option>
+                <option value="LIST">LIST</option>
+            </select>
+        </td>
+        <td>
+            <select class="rp-kind">
+                <option value="SCALAR">SCALAR</option>
+                <option value="OBJECT">OBJECT</option>
+            </select>
+        </td>
+        <td class="rp-type-cell">
+            <select class="scalar-type">
+                <option>String</option><option>Long</option><option>Integer</option><option>Double</option>
+                <option>Boolean</option><option>UUID</option><option>LocalDate</option><option>LocalDateTime</option>
+            </select>
+        </td>
+        <td>
+            <button type="button" class="btn btn-sm" onclick="openResPartFields(this)" disabled>فیلدهای Object…</button>
+        </td>
+        <td><button class="btn btn-danger btn-sm" type="button" onclick="removeRespPartRow(this)">حذف</button></td>
+    </tr>
+
+    <tr id="resPartFieldTemplate">
+        <td><input type="text" placeholder="fieldName"/></td>
+        <td>
+            <select>
+                <option>String</option><option>Long</option><option>Integer</option><option>Double</option>
+                <option>Boolean</option><option>UUID</option><option>LocalDate</option><option>LocalDateTime</option>
+            </select>
+        </td>
+        <td class="center"><input type="checkbox"/></td>
+        <td><button class="btn btn-danger btn-sm" type="button" onclick="removeRow(this)">حذف</button></td>
+    </tr>
+    </tbody>
+</table>

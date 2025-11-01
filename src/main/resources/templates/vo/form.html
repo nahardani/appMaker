@@ -1,0 +1,72 @@
+<!DOCTYPE html><html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>VO Template</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+    <style>textarea{width:100%;min-height:160px;direction:ltr}</style></head>
+<body>
+<div class="header"><h1>Value Object Template</h1><a th:href="@{/vo-templates}">بازگشت</a></div>
+<div class="container">
+    <form class="card" th:action="${t.id==null}? @{/vo-templates} : @{'/vo-templates/' + ${t.id}}" method="post">
+        <div class="grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div><label>ID (Class Name)</label><input name="id" th:value="${t.id}" required/></div>
+            <div><label>Package</label><input name="packageName" th:value="${t.packageName}" placeholder="com.company.common.vo"/></div>
+            <div>
+                <label>Java Type</label>
+                <select name="javaType">
+                    <option th:selected="${t.javaType=='record'}" value="record">record</option>
+                    <option th:selected="${t.javaType=='class'}" value="class">class</option>
+                </select>
+            </div>
+            <div><label>Category</label><input name="category" th:value="${t.category}" placeholder="banking"/></div>
+            <div><label>Status</label>
+                <select name="status"><option th:selected="${t.status=='ACTIVE'}">ACTIVE</option><option th:selected="${t.status=='ARCHIVED'}">ARCHIVED</option></select>
+            </div>
+            <div><label>Jackson as primitive</label>
+                <select name="jacksonAsPrimitive">
+                    <option value="true" th:selected="${t.jacksonAsPrimitive == true}">true</option>
+                    <option value="false" th:selected="${t.jacksonAsPrimitive != true}">false</option>
+                </select>
+            </div>
+        </div>
+
+        <label style="margin-top:8px;">Description</label>
+        <input name="description" th:value="${t.description}"/>
+
+        <label style="margin-top:8px;">Fields (JSON)</label>
+        <textarea name="fields" th:text="${fieldsJson}"></textarea>
+
+        <label>Invariants (JSON array)</label>
+        <textarea name="invariants" th:text="${invariantsJson}"></textarea>
+
+        <div class="actions" style="justify-content:flex-end;margin-top:8px;">
+            <button type="button" class="btn" onclick="preview()">پیش‌نمایش جاوا</button>
+            <button class="btn btn-primary">ذخیره</button>
+        </div>
+    </form>
+
+    <div id="pv" class="card" style="display:none;margin-top:12px;">
+        <h3>Preview</h3>
+        <pre id="out" style="white-space:pre-wrap;direction:ltr;"></pre>
+    </div>
+</div>
+<script>
+    function preview(){
+        const form = document.querySelector('form');
+        const t = {
+            id: form.querySelector('[name=id]').value,
+            packageName: form.querySelector('[name=packageName]').value,
+            javaType: form.querySelector('[name=javaType]').value,
+            category: form.querySelector('[name=category]').value,
+            status: form.querySelector('[name=status]').value,
+            jacksonAsPrimitive: form.querySelector('[name=jacksonAsPrimitive]').value==='true',
+            description: form.querySelector('[name=description]').value,
+            fields: JSON.parse(form.querySelector('[name=fields]').value||'[]'),
+            invariants: JSON.parse(form.querySelector('[name=invariants]').value||'[]')
+        };
+        fetch('/vo-templates/render',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(t)})
+            .then(r=>r.text()).then(txt=>{
+            document.getElementById('pv').style.display='block';
+            document.getElementById('out').textContent = txt;
+        }).catch(()=>alert('خطا در پیش‌نمایش'));
+    }
+</script>
+</body></html>

@@ -1,0 +1,47 @@
+<!— Constants/Properties —>
+<div th:fragment="constants(project)">
+    <div class="card">
+        <div class="card-head"><h3>ثوابت (Properties / Config)</h3></div>
+
+
+            <form class="form"
+                  th:action="@{'/wizard/' + ${project.id} + '/settings/constants'}"
+                  method="post" th:object="${constantsForm}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="profile" th:value="${selectedProfile != null ? selectedProfile : 'dev'}"/>
+
+
+                <div class="grid-3">
+                <div>
+                    <label>محل ذخیره (properties یا yaml)</label>
+                    <select name="constants.store">
+                        <option value="properties">application.properties</option>
+                        <option value="yaml">application.yml</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Scope</label>
+                    <select name="constants.scope">
+                        <option value="global">Global</option>
+                        <option value="profile">Per-Profile</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Profile هدف (اختیاری)</label>
+                    <input type="text" name="constants.profile" placeholder="dev/test/prod"/>
+                </div>
+            </div>
+
+            <table class="table" id="constTable">
+                <thead><tr><th>کلید</th><th>مقدار</th><th>توضیح</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+                <div class="actions" style="justify-content:flex-end">
+                    <button class="btn btn-primary" type="submit">ذخیرهٔ Constants برای
+                        <span th:text="${selectedProfile}">dev</span>
+                    </button>
+                </div>
+            </form>
+    </div>
+</div>

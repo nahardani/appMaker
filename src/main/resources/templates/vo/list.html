@@ -1,0 +1,27 @@
+<!DOCTYPE html><html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Value Object Templates</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/></head>
+<body>
+<div class="header"><h1>Value Objects</h1>
+    <div>
+        <a th:href="@{/home}">بازگشت</a>
+        <a th:href="@{/vo-templates/new}" class="btn btn-primary" style="margin-inline-start:8px">جدید</a>
+    </div>
+</div>
+<div class="container card">
+    <table>
+        <thead><tr><th>ID</th><th>Package</th><th>Type</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        <tr th:each="t : ${templates}">
+            <td th:text="${t.id}">EmailAddress</td>
+            <td th:text="${t.packageName}">com.company.common.vo</td>
+            <td th:text="${t.javaType}">record</td>
+            <td th:text="${t.status}">ACTIVE</td>
+            <td>
+                <a th:href="@{'/vo-templates/' + ${t.id} + '/edit'}" class="btn btn-secondary">ویرایش</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body></html>

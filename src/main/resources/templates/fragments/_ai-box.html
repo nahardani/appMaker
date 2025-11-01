@@ -1,0 +1,278 @@
+<!-- fragments/_ai-box.html -->
+<div th:fragment="aiBox(project, ctrl, ep, mode)">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="${mode == 'REFINE' ? 'باز‌تولید/بهبود با AI' : 'تولید کد با هوش مصنوعی'}">AI</h3>
+            <small class="muted" style="margin-inline-start:auto">
+                Java:
+                <span th:text="${project.ms != null ? project.ms.javaVersion : project.javaVersion}">17</span>
+                • Base package:
+                <span th:text="${project.ms != null ? project.ms.basePackage : ''}">com.example.app</span>
+                • Ctl:
+                <code th:text="${ctrl != null ? ctrl.name : '—'}">—</code>
+                • Ep:
+                <code th:text="${ep != null ? ep.name : '—'}">—</code>
+            </small>
+        </div>
+
+        <form id="aiForm" onsubmit="return doGenerate(event)">
+            <!-- کانتکست ثابت از سمت سرور -->
+            <input type="hidden" id="projectId"  th:value="${project.id}"/>
+            <input type="hidden" id="basePackage" th:value="${project.ms != null ? project.ms.basePackage : ''}"/>
+            <input type="hidden" id="basePath"    th:value="${project.ms != null ? project.ms.basePath    : ''}"/>
+            <input type="hidden" id="javaVersion" th:value="${project.ms != null ? project.ms.javaVersion : project.javaVersion}"/>
+            <input type="hidden" id="ctrlName"    th:value="${ctrl != null ? ctrl.name : ''}"/>
+            <input type="hidden" id="epName"      th:value="${ep != null ? ep.name : ''}"/>
+
+            <div class="grid-2">
+                <div>
+                    <label>Provider</label>
+                    <select id="provider">
+                        <option value="openai" selected>OpenAI</option>
+                        <option value="ollama">Ollama</option>
+                        <option value="huggingface">Hugging Face</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label>Model</label>
+                    <select id="model"></select>
+                </div>
+            </div>
+
+            <div style="margin-top:8px">
+                <label>Prompt (دلخواه)</label>
+                <textarea id="prompt" rows="6" placeholder="اگر می‌خواهید متن پرامپت را دستی بدهید اینجا بنویسید..."></textarea>
+            </div>
+
+            <div class="actions" style="justify-content:flex-end">
+                <button id="btnGen" type="submit" class="btn">پیش‌نمایش (Dry-run)</button>
+                <button id="btnCommit" type="button" class="btn btn-primary" onclick="doCommit()"
+                        th:text="${mode == 'REFINE' ? 'جایگزینی روی همین اندپوینت' : 'ثبت به‌عنوان اندپوینت'}">
+                    ثبت
+                </button>
+            </div>
+
+            <div id="aiStatus" class="muted" style="margin-top:8px; display:none;"></div>
+        </form>
+
+        <h4 style="margin-top:12px">پیش‌نمایش فایل‌ها</h4>
+        <pre id="raw" class="muted" style="white-space:pre-wrap"></pre>
+        <div id="files"></div>
+    </div>
+
+    <script th:inline="javascript">
+        // --- state
+        window.generated ??= null;
+
+        // --- models by provider
+        async function fillModelsForProvider(){
+            const prov  = document.getElementById('provider').value;
+            const model = document.getElementById('model');
+            model.innerHTML = '';
+            try{
+                const r = await fetch(`/api/ai/meta/models?provider=${encodeURIComponent(prov)}`);
+                const arr = await r.json();
+                (arr||[]).forEach(m=>{
+                    const opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    model.appendChild(opt);
+                });
+            }catch(_){}
+        }
+        document.getElementById('provider').addEventListener('change', fillModelsForProvider);
+        fillModelsForProvider();
+
+        function setBusy(isBusy, msg=''){
+            const btnGen = document.getElementById('btnGen');
+            const status = document.getElementById('aiStatus');
+            if (btnGen) btnGen.disabled = isBusy;
+            if (status){
+                status.style.display = isBusy ? 'block' : 'none';
+                status.textContent = msg || '';
+            }
+        }
+
+        function renderFiles(files){
+            const c = document.getElementById('files');
+            c.innerHTML = '';
+            if (!files || !files.length){
+                c.innerHTML = '<div class="muted">فایلی بازگشتی وجود ندارد.</div>';
+                return;
+            }
+            files.forEach(f => {
+                if (!f || !f.path) return;
+                const pre = document.createElement('pre');
+                pre.style.whiteSpace = 'pre-wrap';
+                pre.style.direction  = 'ltr';
+                pre.textContent = `# ${f.path}\n\n${f.content || ''}`;
+                c.appendChild(pre);
+            });
+        }
+
+        // کمک‌متد: شناسه‌ها را مطمئن استخراج کن
+        function getIdsForAI() {
+            const pid  = document.getElementById('projectId')?.value || '';
+            const ctrl = document.getElementById('ctrlName')?.value   // hidden
+                || document.querySelector('.tag[data-ctrl-name]')?.getAttribute('data-ctrl-name') // اگر گذاشتی
+                || '';
+            const ep   = document.getElementById('epName')?.value
+                || document.getElementById('endpointSelect')?.value
+                || document.getElementById('endpoint')?.value
+                || '';
+            return { pid, ctrl, ep };
+        }
+
+        async function doGenerate(e){
+            if (e) e.preventDefault();
+            if (document.getElementById('btnGen')?.disabled) return false;
+
+            const { pid, ctrl, ep } = getIdsForAI();
+            if (!pid || !ctrl || !ep){
+                alert('ابتدا یک اندپوینت از بالای صفحه انتخاب/ایجاد کنید.');
+                return false;
+            }
+
+            setBusy(true, 'در حال تولید کد توسط AI...');
+            const promptText = (document.getElementById('prompt')?.value || '').trim();
+
+            // 1) ذخیره پرامپت
+            try {
+                const token  = document.querySelector('meta[name="_csrf"]')?.content;
+                const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+                const headers = {'Content-Type':'application/json'};
+                if (token && header) headers[header]=token;
+
+                await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`, {
+                    method:'POST', headers, body: JSON.stringify({ prompt: promptText })
+                });
+            } catch(_){}
+
+            // 2) فراخوانی generate
+            const payload = {
+                projectId:   pid,
+                provider:    document.getElementById('provider')?.value,
+                model:       document.getElementById('model')?.value,
+                prompt:      promptText || null,
+                basePackage: document.getElementById('basePackage')?.value || null,
+                basePath:    document.getElementById('basePath')?.value || null,
+                javaVersion: Number(document.getElementById('javaVersion')?.value) || 17,
+                controllerName: ctrl,
+                endpointName:   ep
+            };
+
+            const rawPre  = document.getElementById('raw');
+            const filesDiv= document.getElementById('files');
+            if (rawPre) rawPre.textContent = '';
+            if (filesDiv) filesDiv.innerHTML = '';
+
+            try{
+                const r = await fetch('/api/ai/generate', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                let data; const ct = r.headers.get('content-type') || '';
+                if (ct.includes('application/json')) data = await r.json();
+                else data = { raw: await r.text() };
+
+                if (!r.ok){
+                    window.generated = null;
+                    if (rawPre) rawPre.textContent = data.error || '❌ خطا در تولید';
+                    return false;
+                }
+
+                const files = Array.isArray(data.files) ? data.files : [];
+                window.generated = { raw: data.raw || '', files };
+
+                if (rawPre) rawPre.textContent = window.generated.raw || '';
+                if (typeof renderFiles === 'function') renderFiles(files);
+
+                // 3) ذخیره RAW برای این اندپوینت
+                try {
+                    const token  = document.querySelector('meta[name="_csrf"]')?.content;
+                    const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+                    const headers = {'Content-Type':'application/json'};
+                    if (token && header) headers[header]=token;
+
+                    await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`, {
+                        method:'POST', headers, body: JSON.stringify({ raw: window.generated.raw || '' })
+                    });
+                } catch(_){}
+
+            } catch (err){
+                window.generated = null;
+                if (rawPre) rawPre.textContent = '❌ خطای شبکه/پردازش: ' + (err?.message || err);
+            } finally {
+                setBusy(false);
+            }
+            return false;
+        }
+
+
+
+
+        async function doCommit(){
+            const pid  = document.getElementById('projectId')?.value;
+            const ctrl = document.getElementById('ctrlName')?.value;
+            // اگر epName ندارید و از endpointSelect استفاده می‌کنید:
+            const ep   = document.getElementById('epName')?.value
+                || document.getElementById('endpointSelect')?.value;
+
+            if (!pid || !ctrl || !ep){
+                alert('کنترلر/اندپوینت نامعتبر است.');
+                return;
+            }
+
+            const promptText = (document.getElementById('prompt')?.value || '').trim();
+
+            const token  = document.querySelector('meta[name="_csrf"]')?.content;
+            const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+            const headersJSON = {'Content-Type':'application/json'};
+            const headers = {'X-Requested-With':'fetch'};
+            if (token && header){ headers[header] = token; headersJSON[header] = token; }
+
+            setBusy(true, 'در حال ثبت فایل‌های AI روی اندپوینت...');
+
+            try{
+                // 1) ذخیره‌ی پرامپت (اختیاری، اگر چیزی نوشته شده باشد)
+                if (promptText){
+                    try{
+                        await fetch(
+                            `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`,
+                            { method:'POST', headers: headersJSON, body: JSON.stringify({ prompt: promptText }) }
+                        );
+                    }catch(_){ /* اگر ذخیره نشد ادامه می‌دهیم */ }
+                }
+
+                // 2) ذخیره‌ی متن خام AI (اختیاری؛ اگر در window.generated موجود است)
+                if (window.generated?.raw){
+                    try{
+                        await fetch(
+                            `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`,
+                            { method:'POST', headers: headersJSON, body: JSON.stringify({ raw: window.generated.raw }) }
+                        );
+                    }catch(_){ /* اگر ذخیره نشد ادامه می‌دهیم */ }
+                }
+
+                // 3) Commit فایل‌های AI از stash به اندپوینت
+                const url = `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/commit?clearStash=true`;
+                const r = await fetch(url, { method:'POST', headers });
+                const data = await r.json().catch(()=> ({}));
+                if (!r.ok || !data.ok){
+                    alert(data.message || 'ثبت ناموفق بود.');
+                    return;
+                }
+
+                // 4) رفرش صفحه با ep انتخاب‌شده تا بخش committed دیده شود
+                location.href = `/wizard/${encodeURIComponent(pid)}/controllers?ctrl=${encodeURIComponent(ctrl)}&ep=${encodeURIComponent(ep)}`;
+
+            } catch(err){
+                alert('خطا در ثبت: ' + (err?.message || err));
+            } finally {
+                setBusy(false);
+            }
+        }
+
+    </script>
+</div>

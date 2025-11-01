@@ -1,0 +1,75 @@
+
+<div th:fragment="committed(project, ctrl, ep)">
+    <div class="card">
+        <div class="card-head">
+            <h3>
+                فایل‌های ثبت‌شدهٔ AI برای
+                <span class="tag" th:text="${ctrl != null ? ctrl.name : '—'}">—</span>
+                ::
+                <span class="tag" th:text="${ep != null ? ep.name : '—'}">—</span>
+            </h3>
+            <small class="muted" style="margin-inline-start:auto"
+                   th:text="${#lists.size(ep != null ? ep.aiFiles : T(java.util.Collections).emptyList()) + ' فایل'}">0 فایل</small>
+        </div>
+
+        <div th:if="${ep == null || ep.aiFiles == null || #lists.isEmpty(ep.aiFiles)}" class="muted">
+            هنوز فایلی ثبت نشده.
+        </div>
+
+        <div class="file-list" th:if="${ep != null && ep.aiFiles != null && !#lists.isEmpty(ep.aiFiles)}">
+            <details class="file-item" th:each="f,idx : ${ep.aiFiles}">
+                <summary><code th:text="${f.path}">src/main/java/...</code></summary>
+                <textarea class="code-editor"
+                          spellcheck="false"
+                          rows="18"
+                          wrap="off"
+                          th:attr="data-index=${idx.index}, data-path=${f.path}"
+                          th:text="${f.content}"></textarea>
+            </details>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end;gap:8px;">
+            <button type="button" class="btn" onclick="saveAllAiFiles()">ذخیرهٔ همه</button>
+        </div>
+    </div>
+
+    <style>
+        .file-list{direction:ltr;text-align:left}
+        .file-item{margin:8px 0;border:1px solid #263240;border-radius:10px;background:#0f1520;overflow:hidden}
+        .file-item>summary{cursor:pointer;padding:8px 12px;list-style:none;display:flex;align-items:center;gap:8px;
+            font-family:ui-monospace,Menlo,Consolas,monospace;color:#cfe6ff;user-select:none}
+        .file-item>summary::before{content:"▸";display:inline-block;margin-right:6px;transform:translateY(1px);
+            transition:transform .12s ease;color:#9cc4ff}
+        .file-item[open]>summary::before{content:"▾"}
+        .file-item[open]>summary{border-bottom:1px solid #263240}
+        .file-item code{background:transparent;padding:0;font-size:13px;color:#e7eefc}
+        .code-editor{display:block;width:100%;box-sizing:border-box;padding:12px;border:0;outline:none;resize:vertical;
+            min-height:220px;background:#09131f;color:#e7eefc;font-family:ui-monospace,Menlo,Consolas,monospace;
+            font-size:13px;line-height:1.5;white-space:pre;direction:ltr;text-align:left}
+    </style>
+
+
+    <script>
+        async function saveAllAiFiles(){
+            const projectId = document.getElementById('projectId')?.value;
+            const ctrlName  = document.getElementById('ctrlName')?.value;
+            const epName    = document.getElementById('endpoint')?.value;
+            if(!projectId || !ctrlName || !epName){ alert('کنترلر/اندپوینت معتبر نیست.'); return; }
+
+            const edits = Array.from(document.querySelectorAll('.code-editor'))
+                .map(t => ({ index: Number(t.dataset.index), path: t.dataset.path, content: t.value }));
+
+            const token  = document.querySelector('meta[name="_csrf"]')?.content;
+            const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token && header) headers[header] = token;
+
+            const r = await fetch(`/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints/${encodeURIComponent(epName)}/ai/save`, {
+                method:'POST', headers, body: JSON.stringify({ files: edits })
+            });
+            const data = await r.json().catch(()=>({}));
+            if(!r.ok || !data.ok){ alert(data.message || 'ذخیره ناموفق بود.'); return; }
+            alert('تغییرات ذخیره شد.');
+        }
+    </script>
+</div>

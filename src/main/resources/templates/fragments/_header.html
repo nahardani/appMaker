@@ -1,0 +1,18 @@
+<!-- top bar header fragment -->
+<div th:fragment="topbar(title, project)">
+    <header class="topbar">
+        <div class="topbar__inner">
+            <!-- راست: عنوان صفحه -->
+            <div class="topbar__title" th:text="${title}">عنوان صفحه</div>
+
+            <!-- چپ: اکشن‌ها -->
+            <div class="topbar__actions" style="display:flex;align-items:center;gap:8px">
+                <form th:action="@{/logout}" method="post" class="inline">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" class="btn btn-secondary">خروج</button>
+                </form>
+                <a href="/home" class="btn btn-secondary">صفحه اصلی</a>
+            </div>
+        </div>
+    </header>
+</div>

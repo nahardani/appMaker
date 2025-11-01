@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <title th:replace="${pageTitle} ?: ~{}">App Maker</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <link rel="stylesheet" th:href="@{/css/wizard-controllers.css}"/>
+</head>
+<body>
+<div layout:fragment="content"><!-- page content --></div>
+<script th:src="@{/js/wizard-controllers.js?v=10}"></script>
+</body>
+</html>

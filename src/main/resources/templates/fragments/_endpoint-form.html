@@ -1,0 +1,30 @@
+<!-- templates/fragments/_endpoint-form.html -->
+<div th:fragment="endpointForm(project, ctrl)">
+    <form class="card"
+          th:action="@{'/wizard/' + ${project.id} + '/controllers/' + ${ctrl.name} + '/endpoints/add'}"
+          method="post">
+        <div class="card-head"><h3>افزودن اندپوینت جدید</h3></div>
+
+        <div class="grid-3">
+            <div>
+                <label>نام متد (Endpoint name)</label>
+                <input name="name" placeholder="getById" required/>
+            </div>
+            <div>
+                <label>HTTP Method</label>
+                <select name="httpMethod">
+                    <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+                </select>
+            </div>
+            <div>
+                <label>Path نسبی</label>
+                <input name="path" placeholder="/customers/{id}"/>
+            </div>
+        </div>
+
+        <div class="actions" style="justify-content:flex-end">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="btn btn-primary">افزودن اندپوینت</button>
+        </div>
+    </form>
+</div>
