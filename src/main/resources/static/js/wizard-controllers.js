@@ -375,8 +375,6 @@ function hydrateResponseFromHidden() {
 const OLLAMA_BASE = '/wizard'; // ما از سرور خودمان پروکسی می‌زنیم
 
 
-
-
 // نمایش طرح و فایل‌ها + آماده‌سازی payload برای apply
 function renderAiResult(data) {
     const planEl = document.getElementById('aiPlan');
@@ -416,16 +414,10 @@ function escapeHtml(s) {
 
 
 function getCsrf() {
-    const token  = document.querySelector('meta[name="_csrf"]')?.content;
+    const token = document.querySelector('meta[name="_csrf"]')?.content;
     const header = document.querySelector('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
-    return { token, header };
+    return {token, header};
 }
-
-
-
-
-
-
 
 
 /* ========== Init ========== */
@@ -453,59 +445,345 @@ window.deleteEndpoint = deleteEndpoint;
 
 
 // ========= Security box helpers =========
-(function(){
-    function show(el, on){ if(el){ el.classList[on?'remove':'add']('hidden'); } }
+(function () {
+    function show(el, on) {
+        if (el) {
+            el.classList[on ? 'remove' : 'add']('hidden');
+        }
+    }
 
-    function refreshSecurityVisibility(valOpt){
+    function refreshSecurityVisibility(valOpt) {
         var sel = document.getElementById('authTypeSelect');
         var v = (valOpt || (sel ? sel.value : 'NONE') || 'NONE').toUpperCase();
-        document.querySelectorAll('.auth-block').forEach(function(block){
+        document.querySelectorAll('.auth-block').forEach(function (block) {
             var kind = (block.getAttribute('data-auth') || '').toUpperCase();
             show(block, kind === v);
         });
     }
 
     // global handlers
-    window.onAuthTypeChange = function(val){ refreshSecurityVisibility(val); };
+    window.onAuthTypeChange = function (val) {
+        refreshSecurityVisibility(val);
+    };
 
-    window.addRoleRow = function(){
+    window.addRoleRow = function () {
         var tbody = document.querySelector('#rolesTable tbody');
-        if(!tbody) return;
+        if (!tbody) return;
         var idx = tbody.querySelectorAll('tr').length;
         var tr = document.createElement('tr');
         tr.innerHTML =
-            '<td><input type="text" name="roles['+idx+'].name" placeholder="ROLE_USER"/></td>' +
-            '<td><input type="text" name="roles['+idx+'].desc" placeholder="کاربر"/></td>' +
+            '<td><input type="text" name="roles[' + idx + '].name" placeholder="ROLE_USER"/></td>' +
+            '<td><input type="text" name="roles[' + idx + '].desc" placeholder="کاربر"/></td>' +
             '<td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">حذف</button></td>';
         tbody.appendChild(tr);
     };
 
-    window.addRuleRow = function(){
+    window.addRuleRow = function () {
         var tbody = document.querySelector('#rulesTable tbody');
-        if(!tbody) return;
+        if (!tbody) return;
         var idx = tbody.querySelectorAll('tr').length;
         var tr = document.createElement('tr');
         tr.innerHTML =
-            '<td><input type="text" name="rules['+idx+'].pathPattern" placeholder="/api/**"/></td>' +
-            '<td><select name="rules['+idx+'].httpMethod">' +
+            '<td><input type="text" name="rules[' + idx + '].pathPattern" placeholder="/api/**"/></td>' +
+            '<td><select name="rules[' + idx + '].httpMethod">' +
             '<option>ANY</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>' +
             '</select></td>' +
-            '<td><input type="text" name="rules['+idx+'].requirement" placeholder="authenticated"/></td>' +
+            '<td><input type="text" name="rules[' + idx + '].requirement" placeholder="authenticated"/></td>' +
             '<td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">حذف</button></td>';
         tbody.appendChild(tr);
     };
 
-    window.removeRow = function(btn){
+
+    let EP_CTX = {projectId: null, ctrlName: null};
+
+    function qs(sel) {
+        return document.querySelector(sel);
+    }
+
+    function openEpModal(projectId, ctrlName) {
+        if (!projectId || !ctrlName) {
+            alert('ابتدا یک کنترلر از سایدبار انتخاب یا ایجاد کنید.');
+            return;
+        }
+        EP_CTX = {projectId, ctrlName};
+        qs('#epModalCtrlLabel').textContent = `کنترلر: ${ctrlName}`;
+        resetEpForm();
+        loadEndpoints();
+        qs('#epModal').style.display = 'block';
+    }
+
+    function closeEpModal() {
+        qs('#epModal').style.display = 'none';
+    }
+
+    function resetEpForm() {
+        qs('#epIndex').value = '';
+        qs('#epNameNew').value = '';
+        qs('#epMethod').value = 'GET';
+        qs('#epPath').value = '';
+    }
+
+    async function loadEndpoints() {
+        const {projectId, ctrlName} = EP_CTX;
+        try {
+            const r = await fetch(`/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints/json`);
+            const data = await r.json();
+            if (!r.ok) {
+                throw new Error(data.message || 'load failed');
+            }
+            renderEndpointList(data || []);
+            // کمبوی اصلی صفحه را هم ریفرش کن
+            refreshEndpointSelect(data || []);
+        } catch (e) {
+            qs('#epList').innerHTML = `<div class="muted">خطا در بارگذاری: ${e.message}</div>`;
+        }
+    }
+
+    function renderEndpointList(list) {
+        const c = qs('#epList');
+        if (!list || !list.length) {
+            c.innerHTML = `<div class="muted">هنوز اندپوینتی ثبت نشده است.</div>`;
+            return;
+        }
+        c.innerHTML = '';
+        list.forEach((ep, idx) => {
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.innerHTML = `
+        <div class="muted">${idx + 1}</div>
+        <div><code>${ep.name || ''}</code></div>
+        <div><span class="chip">${ep.httpMethod || ''}</span></div>
+        <div><code>/${(ep.path || '')}</code></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" onclick="editEp(${idx})">ویرایش</button>
+          <button class="btn btn-secondary" onclick="deleteEp(${idx})">حذف</button>
+        </div>
+      `;
+            c.appendChild(row);
+        });
+    }
+
+    function editEp(idx) {
+        const row = qs(`#epList .row:nth-child(${idx + 1})`);
+        // بهتر: از سرویس بخوانیم؛ ساده‌تر: یک بار دیگر loadEndpoints و ذخیره کنیم.
+        // چون loadEndpoints صدا خورده، می‌توانیم داده را از سرور بخوانیم:
+        fetch(`/wizard/${encodeURIComponent(EP_CTX.projectId)}/controllers/${encodeURIComponent(EP_CTX.ctrlName)}/endpoints/json`)
+            .then(r => r.json())
+            .then(list => {
+                const ep = list[idx];
+                if (!ep) return;
+                qs('#epIndex').value = idx;
+                qs('#epNameNew').value = ep.name || '';
+                qs('#epMethod').value = ep.httpMethod || 'GET';
+                qs('#epPath').value = ep.path || '';
+            });
+    }
+
+    async function saveEndpoint(e) {
+        e.preventDefault();
+        const {projectId, ctrlName} = EP_CTX;
+        const idx = qs('#epIndex').value;
+        const body = {
+            index: (idx === '' ? null : Number(idx)),
+            name: qs('#epNameNew').value?.trim(),
+            httpMethod: qs('#epMethod').value,
+            path: qs('#epPath').value?.trim()
+        };
+        if (!body.name || !body.httpMethod || !body.path) {
+            alert('نام/متد/مسیر الزامی است.');
+            return false;
+        }
+
+        // CSRF
+        const token = document.querySelector('meta[name="_csrf"]')?.content;
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+        const headers = {'Content-Type': 'application/json'};
+        if (token && header) headers[header] = token;
+
+        const r = await fetch(`/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints`, {
+            method: 'POST', headers, body: JSON.stringify(body)
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) {
+            alert(data.message || 'ذخیره ناموفق بود.');
+            return false;
+        }
+        resetEpForm();
+        await loadEndpoints();
+        return false;
+    }
+
+    async function deleteEp(idx) {
+        if (!confirm('حذف این اندپوینت؟')) return;
+        const {projectId, ctrlName} = EP_CTX;
+
+        const token = document.querySelector('meta[name="_csrf"]')?.content;
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+        const headers = {};
+        if (token && header) headers[header] = token;
+
+        const r = await fetch(`/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints/${idx}`, {
+            method: 'DELETE', headers
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) {
+            alert(data.message || 'حذف ناموفق بود.');
+            return;
+        }
+        await loadEndpoints();
+    }
+
+    function refreshEndpointSelect(list) {
+        const sel = qs('#endpointSelect');
+        if (!sel) return;
+        sel.innerHTML = '';
+        (list || []).forEach(ep => {
+            const opt = document.createElement('option');
+            opt.value = ep.name;
+            opt.textContent = `${ep.name}  —  [${ep.httpMethod}] /${ep.path}`;
+            sel.appendChild(opt);
+        });
+    }
+
+
+    window.removeRow = function (btn) {
         var tr = btn && btn.closest('tr');
-        if(!tr) return;
+        if (!tr) return;
         tr.remove();
         // اختیاری: Reindex کردن name ها اگر لازم شد
     };
 
     // init on page load
-    document.addEventListener('DOMContentLoaded', function(){
+    document.addEventListener('DOMContentLoaded', function () {
         refreshSecurityVisibility(); // اعمال وضعیت اولیه
     });
+
+    function currentCtx() {
+        const pid  = document.getElementById('projectId')?.value;
+        const ctrl = document.getElementById('ctrlName')?.value || document.querySelector('.tag')?.textContent?.trim();
+        const ep   = document.getElementById('endpointSelect')?.value;
+        return {pid, ctrl, ep};
+    }
+
+// ----- Prompt Modal -----
+    async function openPromptModal(){
+        const {pid, ctrl, ep} = currentCtx();
+        if(!pid || !ctrl || !ep){ alert('ابتدا اندپوینت را انتخاب کنید.'); return; }
+        try{
+            const r = await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`);
+            const data = await r.json();
+            if(!data.ok){ throw new Error('load failed'); }
+            document.getElementById('promptTextarea').value = data.prompt || '';
+            document.getElementById('promptMeta').textContent = data.updatedAt ? ('آخرین ویرایش: ' + new Date(data.updatedAt).toLocaleString()) : '';
+            document.getElementById('promptModal').style.display = 'block';
+        }catch(e){ alert('خطا در بارگذاری پرامپت'); }
+    }
+
+    function closePromptModal() {
+        document.getElementById('promptModal').style.display = 'none';
+    }
+
+    async function savePrompt(){
+        const {pid, ctrl, ep} = currentCtx();
+        const prompt = document.getElementById('promptTextarea').value || '';
+        const token  = document.querySelector('meta[name="_csrf"]')?.content;
+        const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+        const headers = {'Content-Type':'application/json'}; if (token && header) headers[header]=token;
+
+        const r = await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`, {
+            method:'POST', headers, body: JSON.stringify({prompt})
+        });
+        const data = await r.json().catch(()=>({}));
+        if(!r.ok || !data.ok){ alert('ذخیره ناموفق بود'); return; }
+        closePromptModal();
+    }
+
+// ----- Raw Modal -----
+    async function openRawModal(){
+        const {pid, ctrl, ep} = currentCtx();
+        if(!pid || !ctrl || !ep){ alert('ابتدا اندپوینت را انتخاب کنید.'); return; }
+        try{
+            const r = await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`);
+            const data = await r.json();
+            if(!data.ok){ throw new Error('load failed'); }
+            document.getElementById('rawViewer').textContent = data.raw || '(خالی)';
+            document.getElementById('rawMeta').textContent = data.updatedAt ? ('آخرین به‌روزرسانی: ' + new Date(data.updatedAt).toLocaleString()) : '';
+            document.getElementById('rawModal').style.display = 'block';
+        }catch(e){ alert('خطا در بارگذاری خروجی AI'); }
+    }
+
+    function closeRawModal() {
+        document.getElementById('rawModal').style.display = 'none';
+    }
+
+
+    function getIdsForAI() {
+        const pid  = document.getElementById('projectId')?.value || '';
+        const ctrl = document.getElementById('ctrlName')?.value   || '';
+        // اندپوینت را همیشه از کمبوی بالای صفحه بگیر
+        const ep   = document.getElementById('endpointSelect')?.value || '';
+        return { pid, ctrl, ep };
+    }
+
+    async function hydrateAiBoxFromSaved() {
+        const { pid, ctrl, ep } = getIdsForAI();
+        if (!pid || !ctrl || !ep) return;
+
+        // پرامپت ذخیره‌شده → textarea#prompt
+        try {
+            const r = await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`);
+            const data = await r.json().catch(()=> ({}));
+            if (r.ok && data?.ok && typeof data.prompt === 'string') {
+                const ta = document.getElementById('prompt');
+                if (ta) ta.value = data.prompt || '';
+            }
+        } catch (_) {}
+
+        // RAW ذخیره‌شده → pre#raw
+        try {
+            const r2 = await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`);
+            const d2 = await r2.json().catch(()=> ({}));
+            if (r2.ok && d2?.ok && typeof d2.raw === 'string') {
+                const pre = document.getElementById('raw');
+                if (pre) pre.textContent = d2.raw || '';
+                // اگر parse-file‌ها هم داشتی، همون‌جا می‌تونی renderFiles(...) رو صدا بزنی
+            }
+        } catch (_) {}
+    }
+
+// ترایگرهای مینیمال: روی لود و روی تغییر اندپوینت
+    document.addEventListener('DOMContentLoaded', () => {
+        hydrateAiBoxFromSaved(); // دفعه‌ی اول که صفحه بالا می‌آد
+
+        const sel = document.getElementById('endpointSelect');
+        if (sel) {
+            sel.addEventListener('change', () => {
+                hydrateAiBoxFromSaved(); // هر بار اندپوینت عوض شد
+            });
+        }
+
+        // اگر aiBox داخل <details> است و “باز/بسته” می‌شود:
+        const det = document.getElementById('aiBoxToggler');
+        if (det) {
+            det.addEventListener('toggle', () => {
+                if (det.open) hydrateAiBoxFromSaved();
+            });
+        }
+    });
+
+
+    window.openEpModal = openEpModal;
+    window.closeEpModal = closeEpModal;
+    window.saveEndpoint = saveEndpoint;
+    window.deleteEp = deleteEp;
+    window.editEp = editEp;
+    window.openRawModal = openRawModal;
+    window.openPromptModal = openPromptModal;
+    window.closePromptModal = closePromptModal;
+    window.closeRawModal = closeRawModal;
+    window.savePrompt = savePrompt;
+    window.getIdsForAI = getIdsForAI;
+
 
 
 })();

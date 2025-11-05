@@ -6,6 +6,8 @@ import com.company.appmaker.enums.PromptTarget;
 import com.company.appmaker.service.PromptTemplate;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
+import java.util.List;
+import java.util.Optional;
 
 public interface PromptTemplateRepo extends MongoRepository<PromptTemplate, String> {
 
@@ -20,8 +22,14 @@ public interface PromptTemplateRepo extends MongoRepository<PromptTemplate, Stri
       ]
     }
   """)
-    java.util.List<PromptTemplate> searchActive(String projectId, String category, PromptTarget target);
+    List<PromptTemplate> searchActive(String projectId, String category, PromptTarget target);
 
-    java.util.List<PromptTemplate> findByStatusAndCategoryAndTarget(
+    List<PromptTemplate> findByStatusAndCategoryAndTarget(
             PromptStatus status, String category, PromptTarget target);
+
+    Optional<PromptTemplate> findFirstByTargetAndJavaVersionAndStatusOrderByVersionDesc(
+            PromptTarget target,
+            String javaVersion,
+            PromptStatus status
+    );
 }

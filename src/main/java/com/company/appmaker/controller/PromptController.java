@@ -39,7 +39,7 @@ public class PromptController {
 
         if (javaVersion != null && !javaVersion.isBlank()) {
             prompts = prompts.stream()
-                    .filter(p -> renderer.javaVersionOk(p, javaVersion))
+                    .filter(p ->  p.getJavaVersion().equals(javaVersion))
                     .toList();
         }
 
@@ -90,8 +90,7 @@ public class PromptController {
         p.setTarget(patch.getTarget());
         p.setScope(patch.getScope());
         p.setProjectId(patch.getProjectId());
-        p.setJavaMin(patch.getJavaMin());
-        p.setJavaMax(patch.getJavaMax());
+        p.setJavaVersion(patch.getJavaVersion());
         p.setTags(patch.getTags());
         p.setBody(patch.getBody());
         p.setStatus(patch.getStatus());

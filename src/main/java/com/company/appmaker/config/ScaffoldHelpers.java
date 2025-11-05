@@ -1183,16 +1183,39 @@ public class ScaffoldHelpers {
     }
 
 
+//    public static String toDependenciesXml(List<String> coords) {
+//        StringBuilder sb = new StringBuilder();
+//        for (String c : coords) {
+//            // شکل‌های قابل‌قبول:
+//            // groupId:artifactId
+//            // groupId:artifactId:version
+//            String[] parts = c.split(":");
+//            if (parts.length < 2) continue;
+//            String g = parts[0], a = parts[1];
+//            String v = (parts.length >= 3) ? parts[2] : null;
+//
+//            sb.append("    <dependency>\n")
+//                    .append("      <groupId>").append(g).append("</groupId>\n")
+//                    .append("      <artifactId>").append(a).append("</artifactId>\n");
+//            if (v != null && !v.isBlank()) {
+//                sb.append("      <version>").append(v).append("</version>\n");
+//            }
+//            sb.append("    </dependency>\n");
+//        }
+//        // تمیز: داخل <dependencies> در خود template قرار می‌گیرد
+//        return sb.toString();
+//    }
+
+
     public static String toDependenciesXml(List<String> coords) {
         StringBuilder sb = new StringBuilder();
         for (String c : coords) {
-            // شکل‌های قابل‌قبول:
-            // groupId:artifactId
-            // groupId:artifactId:version
+            if (c == null || c.isBlank()) continue;
             String[] parts = c.split(":");
             if (parts.length < 2) continue;
-            String g = parts[0], a = parts[1];
-            String v = (parts.length >= 3) ? parts[2] : null;
+            String g = parts[0].trim();
+            String a = parts[1].trim();
+            String v = (parts.length >= 3) ? parts[2].trim() : null;
 
             sb.append("    <dependency>\n")
                     .append("      <groupId>").append(g).append("</groupId>\n")
@@ -1202,9 +1225,9 @@ public class ScaffoldHelpers {
             }
             sb.append("    </dependency>\n");
         }
-        // تمیز: داخل <dependencies> در خود template قرار می‌گیرد
         return sb.toString();
     }
+
 
 
 

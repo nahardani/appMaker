@@ -10,7 +10,7 @@ public class AiRepairService {
     private final AiFacade ai;
     private final PlanParser parser;
 
-    public GenerateResult repairToJavaFiles(String raw, String basePackage, String feature, String basePath, int javaVersion) {
+    public GenerateResult repairToJavaFiles(String raw, String basePackage, String feature, String basePath, int javaVersion,String provider) {
         String repairPrompt = """
                 Convert the following content into Java %d Spring Boot 3 code files ONLY, following the exact schema:
                 - Keep only Java code.
@@ -21,7 +21,7 @@ public class AiRepairService {
                 CONTENT END
                 """.formatted(javaVersion, basePackage, feature, basePath, raw);
 
-        String fixedRaw = ai.generate("openai", "", repairPrompt); // یا provider فعلی
+        String fixedRaw = ai.generate(provider, "", repairPrompt); // یا provider فعلی
         return parser.parse(fixedRaw);
     }
 }

@@ -2,8 +2,11 @@ package com.company.appmaker.config;
 
 import com.company.appmaker.model.*;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.company.appmaker.config.ScaffoldHelpers.*;
 import com.company.appmaker.service.TemplateService;
@@ -66,287 +69,347 @@ public class ProjectScaffolder {
     }
 
     public void scaffoldToDirectory(Project p, Path root) throws IOException {
+        Objects.requireNonNull(p, "project is null");
+        Objects.requireNonNull(root, "root is null");
 
-        // ===== 0) Helpers & metadata
-        var H         = new ScaffoldHelpers();
-        String group  = H.sanitizeGroupId(p.getCompanyName());
-        String art    = H.artifactId(p);
-        String pkg    = group + "." + H.sanitizeIdentifier(p.getProjectName()).toLowerCase(java.util.Locale.ROOT);
-        String jv     = (p.getJavaVersion() == null || p.getJavaVersion().isBlank()) ? "17" : p.getJavaVersion().trim();
-        String jvNorm = normalizeJavaVer(p); // "8" | "11" | "17" | "21"
+        // --- Settings & metadata
+        var ms = (p.getMs() != null) ? p.getMs() : new MicroserviceSettings();
+        String group     = (p.getCompanyName() == null || p.getCompanyName().isBlank())
+                ? "com.example" : p.getCompanyName().trim();
+        String artifact  = (p.getProjectName() == null || p.getProjectName().isBlank())
+                ? "app" : p.getProjectName().trim().toLowerCase().replaceAll("[^a-z0-9]+", "-");
+//        String basePkg   = (ms.isBasePackage() == null || ms.isBasePackage().isBlank())
+//                ? (group + "." + artifact.replace('-', '.')) : ms.getBasePackage().trim();
+        String basePkg = (p.getMs()!=null && p.getMs().getBasePackage()!=null && !p.getMs().getBasePackage().isBlank())
+                ? p.getMs().getBasePackage().trim()
+                : group + "." + new ScaffoldHelpers().sanitizeIdentifier(p.getProjectName()).toLowerCase(Locale.ROOT);
 
-        // Microservice settings (با مقادیر پیش‌فرض امن)
-        MicroserviceSettings ms = p.getMs();
-        if (ms == null) {
-            ms = new MicroserviceSettings();
-            p.setMs(ms);
-        }
-        if (ms.getServiceName() == null || ms.getServiceName().isBlank())
-            ms.setServiceName(H.sanitizeIdentifier(p.getProjectName()));
-        if (ms.getBasePackage() == null || ms.getBasePackage().isBlank())
-            ms.setBasePackage(pkg);
-        if (ms.getBasePath() == null || ms.getBasePath().isBlank())
-            ms.setBasePath("/api/" + ms.getServiceName().toLowerCase(java.util.Locale.ROOT));
-        if (ms.getJavaVersion() == null || ms.getJavaVersion().isBlank())
-            ms.setJavaVersion(jv);
+        String basePath  = (ms.getBasePath() == null || ms.getBasePath().isBlank())
+                ? "/api/" + artifact.replaceAll("-","") : ms.getBasePath().trim();
+        String jv = (p.getJavaVersion() == null || p.getJavaVersion().isBlank())
+                ? "17" : p.getJavaVersion().trim();
+        String jvNorm    = normalizeJavaVer(jv); // "8"|"11"|"17"|"21"
+        String apiVer    = (ms.getApiVersion() == null || ms.getApiVersion().isBlank()) ? "v1" : ms.getApiVersion().trim();
+        String service   = (ms.getServiceName() == null || ms.getServiceName().isBlank()) ? artifact : ms.getServiceName().trim();
 
-        String basePkg = ms.getBasePackage();
-
-        // ===== 1) create dirs
-        Path srcMain   = root.resolve("src/main/java");
-        Path resources = root.resolve("src/main/resources");
+        // --- Folders
+        Path srcMain    = root.resolve("src/main/java");
+        Path resources  = root.resolve("src/main/resources");
         Files.createDirectories(srcMain);
         Files.createDirectories(resources);
 
-        Path pkgDir    = srcMain.resolve(basePkg.replace('.', '/'));
+        // --- Base package dir
+        Path pkgDir = srcMain.resolve(basePkg.replace('.', '/'));
         Files.createDirectories(pkgDir);
 
-        // App.java (Bootstrap)
-        H.write(pkgDir.resolve("App.java"), H.appJava(basePkg));
+        java.util.LinkedHashSet<String> mandatory = new java.util.LinkedHashSet<>(java.util.List.of(
+                "controller",
+                "service",
+                "repository",
+                "dto",
+                "config",
+                "exception",
+                // اگر در تمپلیت نداری هم بساز؛ بعداً پر می‌شوند:
+                "domain",
+                "mapper",
+                "common",
+                "client",
+                "security",     // حتی اگر SecurityConfig اختیاری است؛ پوشه داشتنش ایرادی ندارد
+                "configprops",  // برای @ConfigurationProperties
+                "i18n"          // پوشه‌ی جاوا؛ فایل‌های resource جداگانه در resources هستند
+        ));
 
-        // folders (standard layers)
-        Path ctrlDir = pkgDir.resolve("controller");
-        Path svcDir  = pkgDir.resolve("service");
-        Path repoDir = pkgDir.resolve("repository");
-        Path dtoDir  = pkgDir.resolve("dto");
-        Path excDir  = pkgDir.resolve("exception");
-        Path cfgDir  = pkgDir.resolve("config");
-        Files.createDirectories(ctrlDir);
-        Files.createDirectories(svcDir);
-        Files.createDirectories(repoDir);
-        Files.createDirectories(dtoDir);
-        Files.createDirectories(excDir);
-        Files.createDirectories(cfgDir);
+        if (p.getPackages() != null) {
+            for (String s : p.getPackages()) {
+                if (s == null) continue;
+                String t = s.trim();
+                if (!t.isEmpty()) mandatory.add(t);
+            }
+        }
 
-        // package-info for main subpackages (idempotent)
-        if (!Files.exists(ctrlDir.resolve("package-info.java")))
-            H.write(ctrlDir.resolve("package-info.java"), "package " + basePkg + ".controller;\n");
-        if (!Files.exists(svcDir.resolve("package-info.java")))
-            H.write(svcDir.resolve("package-info.java"),  "package " + basePkg + ".service;\n");
-        if (!Files.exists(repoDir.resolve("package-info.java")))
-            H.write(repoDir.resolve("package-info.java"), "package " + basePkg + ".repository;\n");
-        if (!Files.exists(dtoDir.resolve("package-info.java")))
-            H.write(dtoDir.resolve("package-info.java"),  "package " + basePkg + ".dto;\n");
-        if (!Files.exists(excDir.resolve("package-info.java")))
-            H.write(excDir.resolve("package-info.java"),  "package " + basePkg + ".exception;\n");
-        if (!Files.exists(cfgDir.resolve("package-info.java")))
-            H.write(cfgDir.resolve("package-info.java"),   "package " + basePkg + ".config;\n");
+        ensurePackages(pkgDir, mandatory);
 
-// ===== 2) POM (deps بر اساس toggles)
+
+        // Standard subpackages
+        Path ctrlDir = ensureDir(pkgDir.resolve("controller"));
+        Path svcDir  = ensureDir(pkgDir.resolve("service"));
+        Path repoDir = ensureDir(pkgDir.resolve("repository"));
+        Path dtoDir  = ensureDir(pkgDir.resolve("dto"));
+        Path cfgDir  = ensureDir(pkgDir.resolve("config"));
+        Path excDir  = ensureDir(pkgDir.resolve("exception"));
+
+        // --- POM (dependencies from Service Profile)
         List<String> coords = new ArrayList<>();
         coords.add("org.springframework.boot:spring-boot-starter-web");
-        if (Boolean.TRUE.equals(ms.isEnableValidation())) coords.add("org.springframework.boot:spring-boot-starter-validation");
-        if (Boolean.TRUE.equals(ms.isUseMongo()))         coords.add("org.springframework.boot:spring-boot-starter-data-mongodb");
-        if (Boolean.TRUE.equals(ms.isEnableActuator()))   coords.add("org.springframework.boot:spring-boot-starter-actuator");
-        if (Boolean.TRUE.equals(ms.isEnableMetrics()))    coords.add("io.micrometer:micrometer-registry-prometheus");
-        if (Boolean.TRUE.equals(ms.isEnableOpenApi()))    coords.add("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0");
+        if (Boolean.TRUE.equals(ms.isUseMongo()))          coords.add("org.springframework.boot:spring-boot-starter-data-mongodb");
+        if (Boolean.TRUE.equals(ms.isEnableActuator()))    coords.add("org.springframework.boot:spring-boot-starter-actuator");
+        if (Boolean.TRUE.equals(ms.isEnableValidation()))  coords.add("org.springframework.boot:spring-boot-starter-validation");
+        if (Boolean.TRUE.equals(ms.isEnableMetrics()))     coords.add("io.micrometer:micrometer-registry-prometheus");
+        if (Boolean.TRUE.equals(ms.isEnableOpenApi()))     coords.add("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0");
 
-// همه چیز باید String باشد:
-        Map<String, String> pomVars = new LinkedHashMap<>();
-        pomVars.put("groupId", group);
-        pomVars.put("artifactId", art);
-        pomVars.put("java.version", (ms.getJavaVersion() != null ? ms.getJavaVersion() : jv));
-// dependencies به صورت XML fragment
-        pomVars.put("dependencies", toDependenciesXml(coords));
-
-// اگر POM تمپلیتی داری:
-        writeFromTpl(
+        templateService.writeFromTpl(
                 root.resolve("pom.xml"),
-                "pom",          // section
-                "pom",          // key
-                jvNorm,         // variant (۸/۱۱/۱۷/۲۱)
-                null,           // language
-                p,              // project (اگر امضای شما این پارامتر را می‌گیرد)
-                pomVars         // <-- Map<String,String>
+                "pom", "pom", jvNorm, null, p,
+                Map.of(
+                        "groupId",      group,
+                        "artifactId",   artifact,
+                        "java.version", (ms.getJavaVersion() != null && !ms.getJavaVersion().isBlank()) ? ms.getJavaVersion() : jv,
+                        "dependencies", toDependenciesXml(coords)
+                )
         );
 
-        // ===== 3) application.yml (+profiles) بر اساس toggles
-        String appYml = """
-        spring:
-          application:
-            name: %s
-        """.formatted(ms.getServiceName());
+        // --- application*.yml
+        templateService.writeFromTpl(
+                resources.resolve("application.yml"),
+                "profiles", "application.base", "any", null, p,
+                Map.of("serviceName", service)
+        );
+        templateService.writeFromTpl(
+                resources.resolve("application-dev.yml"),
+                "profiles", "application-dev", "any", null, p,
+                Map.of() // در صورت نیاز متغیر اضافه کن
+        );
+        templateService.writeFromTpl(
+                resources.resolve("application-test.yml"),
+                "profiles", "application-test", "any", null, p,
+                Map.of()
+        );
+        templateService.writeFromTpl(
+                resources.resolve("application-prod.yml"),
+                "profiles", "application-prod", "any", null, p,
+                Map.of()
+        );
 
-        if (Boolean.TRUE.equals(ms.isUseMongo())) {
-            appYml += """
-          data:
-            mongodb:
-              uri: mongodb://localhost:27017/%s
-        """.formatted(ms.getServiceName().toLowerCase(java.util.Locale.ROOT));
-        }
+        // --- logging
+        templateService.writeFromTpl(
+                resources.resolve("logback-spring.xml"),
+                "logging", "logback-spring", "any", null, p,
+                Map.of()
+        );
 
-        if (Boolean.TRUE.equals(ms.isEnableActuator())) {
-            appYml += """
-        management:
-          endpoints:
-            web:
-              exposure:
-                include: "*"
-        """;
-        }
+        // --- config/exception
+        templateService.writeFromTpl(
+                cfgDir.resolve("WebConfig.java"),
+                "config","WebConfig","any",null,p,
+                Map.of("basePackage", basePkg)
+        );
 
         if (Boolean.TRUE.equals(ms.isEnableOpenApi())) {
-            appYml += """
-        springdoc:
-          api-docs:
-            enabled: true
-          swagger-ui:
-            path: /swagger
-        """;
+            templateService.writeFromTpl(
+                    cfgDir.resolve("OpenApiConfig.java"),
+                    "config","OpenApiConfig","any",null,p,
+                    Map.of(
+                            "basePackage", basePkg,
+                            "serviceName", service,
+                            "apiVersion",  apiVer
+                    )
+            );
         }
-
-        Files.writeString(resources.resolve("application.yml"), appYml);
-
-        // سایر پروفایل‌ها (اگر قبلاً تمپلیت داری، همان رو نگه‌دار)
-        writeFromTpl(resources.resolve("application-dev.yml"),  "profiles", "application-dev",  "any", null, p, null);
-        writeFromTpl(resources.resolve("application-test.yml"), "profiles", "application-test", "any", null, p, null);
-        writeFromTpl(resources.resolve("application-prod.yml"), "profiles", "application-prod", "any", null, p, null);
-
-        // logging & i18n (مثل گذشته)
-        writeFromTpl(resources.resolve("logback-spring.xml"), "logging", "logback-spring", "any", null, p, null);
-        H.writeI18nFromSettings(p, resources);
-        if (!Files.exists(resources.resolve("messages.properties")))
-            writeFromTpl(resources.resolve("messages.properties"), "i18n", "messages", "any", null, p, null);
-
-        // ===== 4) ثابت‌های Config و Exception
-        writeFromTpl(cfgDir.resolve("OpenApiConfig.java"), "config", "OpenApiConfig", "any", null, p, Map.of(
-                "basePackage", basePkg,
-                "apiVersion",  ms.getApiVersion() == null ? "v1" : ms.getApiVersion(),
-                "serviceName", ms.getServiceName(),
-                "enableOpenApi", String.valueOf(ms.isEnableOpenApi())
-        ));
-        writeFromTpl(excDir.resolve("GlobalExceptionHandler.java"), "exception", "GlobalExceptionHandler", "any", null, p, null);
 
         if (Boolean.TRUE.equals(ms.isEnableSecurityBasic())) {
-            writeFromTpl(cfgDir.resolve("SecurityConfig.java"), "config", "SecurityConfig", "any", null, p, null);
+            templateService.writeFromTpl(
+                    cfgDir.resolve("SecurityConfig.java"),
+                    "config","SecurityConfig","any",null,p,
+                    Map.of("basePackage", basePkg)
+            );
         }
 
-        // ===== 5) (اختیاری) Dockerfile / docker-compose.yml
+        templateService.writeFromTpl(
+                excDir.resolve("GlobalExceptionHandler.java"),
+                "exception","GlobalExceptionHandler","any",null,p,
+                Map.of("basePackage", basePkg)
+        );
+
+        // --- App.java
+        templateService.writeFromTpl(
+                pkgDir.resolve("App.java"),
+                "app","App","any",null,p,
+                Map.of("basePackage", basePkg)
+        );
+
+        // --- Optional docker files
         if (Boolean.TRUE.equals(ms.isAddDockerfile())) {
-            String docker = """
-            FROM eclipse-temurin:%s-jre
-            WORKDIR /app
-            COPY target/*.jar app.jar
-            ENTRYPOINT ["java","-jar","/app/app.jar"]
-            """.formatted(ms.getJavaVersion());
-            Files.writeString(root.resolve("Dockerfile"), docker);
+            templateService.writeFromTpl(
+                    root.resolve("Dockerfile"),
+                    "docker", "Dockerfile", "any", null, p,
+                    Map.of("java.version", (ms.getJavaVersion() == null || ms.getJavaVersion().isBlank()) ? jv : ms.getJavaVersion())
+            );
         }
         if (Boolean.TRUE.equals(ms.isAddCompose())) {
-            String compose = """
-            version: "3.9"
-            services:
-              mongo:
-                image: mongo:6
-                ports: ["27017:27017"]
-                volumes: ["mongo_data:/data/db"]
-            volumes:
-              mongo_data: {}
-            """;
-            Files.writeString(root.resolve("docker-compose.yml"), compose);
+            templateService.writeFromTpl(
+                    root.resolve("docker-compose.yml"),
+                    "docker", "docker-compose-mongo", "any", null, p,
+                    Map.of()
+            );
         }
 
-        // ===== 6) DTO/Controller unified (از مدل پروژه—در صورت وجود)
-        if (p.getControllers() != null && !p.getControllers().isEmpty()) {
-            // DTO ها (سازگار با مدل قبلی)
+        // --- I18n (اختیاری؛ اگر مکانیزم‌ات داری، نگه دار؛ اینجا فقط مطمئن می‌شویم فایل پایه خالی موجود است)
+        Path messages = resources.resolve("messages.properties");
+        if (!Files.exists(messages)) Files.writeString(messages, "", StandardCharsets.UTF_8);
+
+        // --- AI generated files (Java only; overwrite; route to proper subpackage)
+        // p.getGeneratedFiles(): List<ProjectScaffolder.GeneratedFile>  (path + content)
+        // --- AI generated files (Java only; overwrite; route under proper package)
+        var allGen = new ArrayList<Project.GeneratedFile>();
+
+
+        // به‌جای حلقه‌ی قبلی روی p.getGeneratedFiles():
+        if (p.getControllers()!=null) {
             for (var c : p.getControllers()) {
-                if (c == null || c.getEndpoints() == null) continue;
-                for (var ep : c.getEndpoints()) {
-                    if (ep == null) continue;
-                    String methodName = (ep.getName() == null || ep.getName().isBlank()) ? "Op" : ep.getName();
-                    String pascal     = H.upperCamel(methodName);
-
-                    // Request DTO وقتی بدنه دارد
-                    String http = ep.getHttpMethod() == null ? "GET" : ep.getHttpMethod().toUpperCase(java.util.Locale.ROOT);
-                    boolean hasBody = http.equals("POST") || http.equals("PUT") || http.equals("PATCH");
-                    if (hasBody && ep.getRequestFields() != null && !ep.getRequestFields().isEmpty()) {
-                        H.write(dtoDir.resolve(pascal + "Request.java"),
-                                H.genDtoJava(basePkg + ".dto", pascal + "Request", ep.getRequestFields()));
-                    }
-
-                    // Response
-                    boolean hasParts = ep.getResponseParts() != null && !ep.getResponseParts().isEmpty();
-                    String compositeName =
-                            (ep.getResponseModelName() != null && !ep.getResponseModelName().isBlank())
-                                    ? H.upperCamel(ep.getResponseModelName().trim())
-                                    : pascal + "Response";
-                    if (hasParts) {
-                        int idx = 0;
-                        for (var part : ep.getResponseParts()) {
-                            if (part == null) { idx++; continue; }
-                            if (!"OBJECT".equalsIgnoreCase(part.getKind())) { idx++; continue; }
-                            String fieldName = (part.getName() == null || part.getName().isBlank())
-                                    ? ("part" + idx) : part.getName().trim();
-                            String objName   = (part.getObjectName() != null && !part.getObjectName().isBlank())
-                                    ? H.upperCamel(part.getObjectName().trim())
-                                    : (H.upperCamel(fieldName) + "Dto");
-                            H.write(dtoDir.resolve(objName + ".java"),
-                                    H.genDtoJava(basePkg + ".dto", objName, part.getFields()));
-                            idx++;
-                        }
-                        H.write(dtoDir.resolve(compositeName + ".java"),
-                                H.genCompositeDtoJava(basePkg + ".dto", compositeName, ep.getResponseParts()));
-                    } else if (ep.getResponseFields() != null && !ep.getResponseFields().isEmpty()) {
-                        H.write(dtoDir.resolve(compositeName + ".java"),
-                                H.genDtoJava(basePkg + ".dto", compositeName, ep.getResponseFields()));
+                if (c==null || c.getEndpoints()==null) continue;
+                for (var e : c.getEndpoints()) {
+                    if (e==null || e.getAiFiles()==null) continue;
+                    for (var gf : e.getAiFiles()) {
+                        allGen.addAll(c.getAiFiles());
                     }
                 }
             }
-
-            // کنترلر یکپارچه (از مدل پروژه)
-            H.write(ctrlDir.resolve("Controller.java"),
-                    H.unifiedControllerJava(basePkg + ".controller", p.getControllers(), basePkg + ".dto"));
         }
 
-        // ===== 7) AI generated files (overwrite, java-only, path normalization)
+
         if (p.getGeneratedFiles() != null) {
-            for (var gf : p.getGeneratedFiles()) {
-                if (gf == null || gf.getPath() == null || gf.getPath().isBlank()) continue;
-
-                // فقط فایل‌های جاوا
-                String path = gf.getPath().trim();
-                if (!path.endsWith(".java")) continue;
-
-                Path target;
-                // اگر path مطلقِ سورس نبود، آن را زیر base package ببریم.
-                if (path.startsWith("src/main/java/")) {
-                    target = root.resolve(path);
-                } else if (path.contains("/controller/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = ctrlDir.resolve(simple);
-                } else if (path.contains("/service/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = svcDir.resolve(simple);
-                } else if (path.contains("/repository/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = repoDir.resolve(simple);
-                } else if (path.contains("/dto/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = dtoDir.resolve(simple);
-                } else if (path.contains("/config/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = cfgDir.resolve(simple);
-                } else if (path.contains("/exception/")) {
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = excDir.resolve(simple);
-                } else {
-                    // پیش‌فرض: زیر basePkg بنداز
-                    String simple = path.substring(path.lastIndexOf('/') + 1);
-                    target = pkgDir.resolve(simple);
-                }
-
-                Files.createDirectories(target.getParent());
-                Files.writeString(target, gf.getContent()); // overwrite = OK
-            }
+            allGen.addAll(p.getGeneratedFiles());
         }
 
-        // ===== 8) extras (نمونه فایل‌های db config قدیمی اگر لازم باشد)
-        var dbDir = resources.resolve("db");
-        Files.createDirectories(dbDir);
-        writeFromTpl(dbDir.resolve("application-db2-jdbc.yml"), "db", "application-db2-jdbc", "any", null, p, null);
-        writeFromTpl(dbDir.resolve("application-db2-jndi.yml"), "db", "application-db2-jndi", "any", null, p, null);
+        for (var gf : allGen) {
+            if (gf == null) continue;
+            String path = gf.getPath();
+            String content = gf.getContent();
+            if (path == null || path.isBlank() || content == null) continue;
+            if (!path.endsWith(".java")) continue; // فقط کلاس‌های جاوا
 
-        // constants.properties از Project (مثل قبل)
-        Files.writeString(resources.resolve("constants.properties"), constantsPropsFrom(p));
+            String declaredPkg = extractPackage(content);
+            Path target;
+            if (declaredPkg != null && !declaredPkg.isBlank()) {
+                Path targetDir = srcMain.resolve(declaredPkg.replace('.', '/'));
+                Files.createDirectories(targetDir);
+                target = targetDir.resolve(fileName(path));
+            } else {
+                String name = fileName(path);
+                Path sub = guessSubPackageDir(name, ctrlDir, svcDir, repoDir, dtoDir);
+                Files.createDirectories(sub);
+                target = sub.resolve(name);
+                content = ensurePackageHeader(content, packageForDir(pkgDir, sub));
+            }
+
+            Files.writeString(target, content, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        }
+
+    }
+
+// ======= Helpers =======
+
+    private static Path ensureDir(Path p) throws IOException {
+        Files.createDirectories(p);
+        return p;
+    }
+
+    private static String toDependenciesXml(List<String> coords) {
+        StringBuilder sb = new StringBuilder();
+        for (String c : coords) {
+            if (c == null || c.isBlank()) continue;
+            String[] parts = c.split(":");
+            if (parts.length < 2) continue;
+            String g = parts[0].trim();
+            String a = parts[1].trim();
+            String v = (parts.length >= 3) ? parts[2].trim() : null;
+
+            sb.append("    <dependency>\n")
+                    .append("      <groupId>").append(g).append("</groupId>\n")
+                    .append("      <artifactId>").append(a).append("</artifactId>\n");
+            if (v != null && !v.isBlank()) {
+                sb.append("      <version>").append(v).append("</version>\n");
+            }
+            sb.append("    </dependency>\n");
+        }
+        return sb.toString();
+    }
+
+    private static String normalizeJavaVer(String v) {
+        if (v == null) return "17";
+        String s = v.trim();
+        if (s.startsWith("1.")) s = s.substring(2); // 1.8 → 8
+        return switch (s) {
+            case "8","11","17","21" -> s;
+            default -> "17";
+        };
+    }
+
+    private static String extractPackage(String content) {
+        Matcher m = Pattern.compile("^\\s*package\\s+([a-zA-Z0-9_.]+)\\s*;\\s*$", Pattern.MULTILINE).matcher(content);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static String fileName(String path) {
+        int idx = path.lastIndexOf('/');
+        if (idx < 0) idx = path.lastIndexOf('\\');
+        return (idx >= 0) ? path.substring(idx + 1) : path;
+    }
+
+    private static Path guessSubPackageDir(String fileName, Path ctrlDir, Path svcDir, Path repoDir, Path dtoDir) {
+        String n = fileName.toLowerCase(Locale.ROOT);
+        if (n.endsWith("controller.java")) return ctrlDir;
+        if (n.endsWith("service.java"))    return svcDir;
+        if (n.endsWith("repository.java")) return repoDir;
+        if (n.endsWith("repo.java"))       return repoDir;
+        if (n.endsWith("dto.java") || n.contains("dto")) return dtoDir;
+        // پیش‌فرض: controller
+        return ctrlDir;
+    }
+
+//    private static String packageForDir(Path pkgRoot, Path subDir) {
+//        // pkgRoot = .../src/main/java/com/x/y
+//        // subDir  = .../src/main/java/com/x/y/controller
+//        String rel = pkgRoot.relativize(subDir).toString().replace('/', '.').replace('\\','.');
+//        if (rel.isEmpty()) return null;
+//        String rootPkg = pkgRoot.getFileName().toString(); // فقط نام آخر دایرکتوری را نمی‌خواهیم؛ مسیر کامل پکیج لازم است
+//        // بهتر: از pkgRoot، قسمت بعد از .../src/main/java/ را برداریم:
+//        // اما در اینجا ساده‌تر:
+//        // فرض: pkgRoot == src/main/java/<basePkg with slashes>
+//        // پس basePkg = pkgRoot after /src/main/java/
+//        // این روش دقیق‌تر:
+//        return null; // این نسخه ساده را با روش دقیق پایین جایگزین می‌کنیم
+//    }
+
+
+    private static String packageForDir(Path pkgRoot, Path subDir) {
+        // پیدا کردن ریشه src/main/java
+        Path javaRoot = pkgRoot;
+        while (javaRoot != null && !javaRoot.endsWith("java")) {
+            javaRoot = javaRoot.getParent();
+        }
+        if (javaRoot == null) {
+            // fallback: base package از pkgRoot استنباط شود
+            String base = pkgRoot.toString().replace('\\','/');
+            int idx = base.indexOf("/src/main/java/");
+            if (idx >= 0) {
+                String tail = base.substring(idx + "/src/main/java/".length()).replace('/', '.').replace('\\','.');
+                if (!tail.isBlank()) {
+                    String rel = subDir.toString().replace('\\','/').substring(base.indexOf("/src/main/java/") + "/src/main/java/".length());
+                    String relPkg = rel.replace('/', '.').replace('\\','.');
+                    return relPkg;
+                }
+            }
+            return null;
+        }
+        // basePkg = بخش بعد از src/main/java
+        String basePkg = pkgRoot.toString().replace('\\','/');
+        int cut = basePkg.indexOf("/src/main/java/");
+        if (cut >= 0) basePkg = basePkg.substring(cut + "/src/main/java/".length());
+        basePkg = basePkg.replace('/','.');
+        String rel = subDir.toString().replace('\\','/');
+        cut = rel.indexOf("/src/main/java/");
+        if (cut >= 0) rel = rel.substring(cut + "/src/main/java/".length());
+        rel = rel.replace('/','.');
+        return rel;
+    }
+
+    private static String ensurePackageHeader(String content, String pkg) {
+        if (pkg == null || pkg.isBlank()) return content;
+        // اگر خودش package دارد، دست نزن
+        if (extractPackage(content) != null) return content;
+        return "package " + pkg + ";\n\n" + content;
     }
 
 
@@ -412,23 +475,23 @@ public class ProjectScaffolder {
     }
 
     /** دریافت tpl از TemplateService، پر کردن placeholderها با fill و نوشتن روی دیسک */
-    private void writeFromTpl(Path target,
-                              String section,
-                              String key,
-                              String javaVer,          // مثلاً "17" یا "any"
-                              String languageOrNull,   // معمولاً null
-                              Project p,
-                              Map<String,String> extra) throws IOException {
-
-        String tpl = templateService.getSnippet(section, key, javaVer, languageOrNull);
-        if (tpl == null || tpl.isBlank()) {
-            // اگر چیزی در DB/classpath پیدا نشد، یک فایل خالی نگذاریم
-            tpl = "";
-        }
-        String content = fill(tpl, p, (extra == null ? java.util.Map.of() : extra));
-        Files.createDirectories(target.getParent());
-        Files.writeString(target, content);
-    }
+//    private void writeFromTpl(Path target,
+//                              String section,
+//                              String key,
+//                              String javaVer,          // مثلاً "17" یا "any"
+//                              String languageOrNull,   // معمولاً null
+//                              Project p,
+//                              Map<String,String> extra) throws IOException {
+//
+//        String tpl = templateService.getSnippet(section, key, javaVer, languageOrNull);
+//        if (tpl == null || tpl.isBlank()) {
+//            // اگر چیزی در DB/classpath پیدا نشد، یک فایل خالی نگذاریم
+//            tpl = "";
+//        }
+//        String content = fill(tpl, p, (extra == null ? java.util.Map.of() : extra));
+//        Files.createDirectories(target.getParent());
+//        Files.writeString(target, content);
+//    }
 
     /** نرمال‌سازی ورژن جاوا به یکی از 8/11/17/21 برای انتخاب tpl صحیح */
 //    private String normalizeJavaVer(Project p) {
@@ -471,6 +534,34 @@ public class ProjectScaffolder {
         sb.append("company.name=").append(p.getCompanyName()).append('\n');
         return sb.toString();
     }
+
+    private static void ensurePackages(Path pkgDir, java.util.Collection<String> packages) throws IOException {
+        if (packages == null) return;
+        for (String raw : packages) {
+            if (raw == null) continue;
+            String name = raw.trim();
+            if (name.isEmpty()) continue;
+
+            // پوشه را بساز
+            Path dir = pkgDir.resolve(name.replace('.', '/'));
+            Files.createDirectories(dir);
+
+            // package-info.java حداقلی
+            Path pi = dir.resolve("package-info.java");
+            if (!Files.exists(pi)) {
+                // pkgDir شبیه src/main/java/com/x/y است → نام کامل پکیج پایه را دربیاوریم
+                String basePkg = pkgDir.toString().replace('\\','/');
+                int cut = basePkg.indexOf("/src/main/java/");
+                String rootPkg = (cut >= 0)
+                        ? basePkg.substring(cut + "/src/main/java/".length()).replace('/', '.')
+                        : ""; // fallback
+
+                String full = rootPkg.isBlank() ? name : (rootPkg + "." + name);
+                Files.writeString(pi, "package " + full + ";\n");
+            }
+        }
+    }
+
 
 
 }

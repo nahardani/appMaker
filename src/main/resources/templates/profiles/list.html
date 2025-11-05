@@ -1,0 +1,27 @@
+<!DOCTYPE html><html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>پروفایل‌های میکروسرویس</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/></head>
+<body>
+<div class="header"><h1>پروفایل‌های میکروسرویس</h1><a th:href="@{/projects}">← پروژه‌ها</a></div>
+<div class="container card">
+    <div class="actions"><a class="btn" th:href="@{/profiles/new}">+ پروفایل جدید</a></div>
+    <table>
+        <thead><tr><th>نام</th><th>پکیج</th><th>مسیر</th><th>جاوا</th><th></th></tr></thead>
+        <tbody>
+        <tr th:each="p : ${profiles}">
+            <td th:text="${p.name}">Web+Mongo</td>
+            <td th:text="${p.basePackage}">com.company.orders</td>
+            <td th:text="${p.basePath}">/api/orders</td>
+            <td th:text="${p.javaVersion}">17</td>
+            <td>
+                <a class="btn btn-secondary" th:href="@{'/profiles/' + ${p.id} + '/edit'}">ویرایش</a>
+                <form th:action="@{'/profiles/' + ${p.id} + '/delete'}" method="post" style="display:inline">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button class="btn btn-danger" type="submit">حذف</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body></html>

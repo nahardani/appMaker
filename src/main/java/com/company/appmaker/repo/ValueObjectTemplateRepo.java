@@ -12,4 +12,5 @@ public interface ValueObjectTemplateRepo extends MongoRepository<ValueObjectTemp
 
     @Query("{ 'status':'ACTIVE', 'category': ?0 }")
     List<ValueObjectTemplate> findActiveByCategory(String category);
+
 }

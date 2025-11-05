@@ -10,49 +10,128 @@
     <link rel="stylesheet" th:href="@{/css/wizard-controllers.css}"/>
 </head>
 <body>
-    <!-- هدر یکپارچه -->
-    <th:block th:replace="fragments/_header :: topbar(title='گام 3 — کنترلر', project=${project})"></th:block>
+<th:block th:replace="fragments/_header :: topbar(title=' کنترلر', project=${project})"></th:block>
+
+
 
 <div class="container">
-
-    <!-- هدر -->
-
-
     <div class="layout">
         <!-- سایدبار کنترلرها -->
-        <aside class="side"
-               th:replace="~{fragments/_sidebar-controllers :: sidebar(project=${project})}"></aside>
+        <aside class="side" th:replace="~{fragments/_sidebar-controllers :: sidebar(project=${project})}"></aside>
 
-        <!-- ستون راست: باکس‌ها -->
+        <!-- ستون راست -->
         <main class="main">
 
-<!--            <section th:replace="~{fragments/_ai-assist :: aiAssist(project=${project}, form=${form})}">-->
-<!--            </section>-->
+            <!-- هیدن‌های کانتکست برای استفاده‌ی JS -->
+            <input type="hidden" id="ctxProjectId" th:value="${project.id}">
+            <input type="hidden" id="ctxCtrlName"  th:value="${selectedCtrl != null ? selectedCtrl.name : ''}">
 
-            <section th:replace="~{fragments/_ai-box :: aiBox(project=${project}, form=${form})}">
-            </section>
+            <!-- نوار انتخاب اندپوینتِ کنترلر انتخاب‌شده -->
+            <div class="card">
+                <div class="card-head">
+                    <h3>
+                        کنترلر:
+                        <span class="tag" th:text="${selectedCtrl != null ? selectedCtrl.name : '—'}">—</span>
+                    </h3>
 
+                    <div style="margin-inline-start:auto; display:flex; gap:8px; align-items:center">
+                        <label for="endpointSelect">اندپوینت:</label>
+                        <select id="endpointSelect">
+                            <option value="">— انتخاب اندپوینت —</option>
+                            <option th:each="e : ${selectedCtrl != null && selectedCtrl.endpoints != null ? selectedCtrl.endpoints : {}}"
+                                    th:value="${e.name}"
+                                    th:text="${e.name + ' — [' + e.httpMethod + '] /' + e.path}"
+                                    th:selected="${selectedEp != null and selectedEp.name == e.name}">
+                            </option>
+                        </select>
 
-            <div class="card" style="margin-top:12px;">
-                <div class="actions" style="justify-content:flex-end; gap:8px;">
-                    <a class="btn btn-secondary"
-                       th:href="@{'/wizard/' + ${project.id} + '/packages'}">← بازگشت به گام پکیج‌ها</a>
-
-                    <a class="btn btn-primary"
-                       th:href="@{'/wizard/' + ${project.id} + '/final'}">ادامه → گام نهایی</a>
+                        <!-- دکمهٔ مدیریت اندپوینت‌ها (مودال) -->
+                        <button type="button"
+                                class="icon-btn"
+                                title="مدیریت اندپوینت‌ها"
+                                th:attr="data-project-id=${project.id}, data-ctrl-name=${selectedCtrl != null ? selectedCtrl.name : ''}"
+                                onclick="openEpModal(this.dataset.projectId, this.dataset.ctrlName)">
+                            📝
+                        </button>
+                    </div>
                 </div>
+            </div>
+
+            <!-- اگر ep فایل AI دارد: ابتدا committed، بعد باکس AI برای بازتولید/بهبود -->
+            <div th:if="${selectedEp != null and selectedEp.aiFiles != null and !#lists.isEmpty(selectedEp.aiFiles)}" style="margin-top:12px">
+                <!-- 1) فایل‌های ثبت‌شده -->
+                <section th:replace="~{fragments/_ai-committed :: committed(project=${project}, ctrl=${selectedCtrl}, ep=${selectedEp})}"></section>
+
+                <!-- 2) باکس AI برای «باز‌تولید/بهبود» -->
+                <details class="card" style="margin-top:12px;">
+                    <summary style="cursor:pointer;">نمایش/مخفی‌کردن باکس AI (باز‌تولید/بهبود)</summary>
+                    <div style="margin-top:8px">
+                        <section th:replace="~{fragments/_ai-box :: aiBox(project=${project}, ctrl=${selectedCtrl}, ep=${selectedEp}, mode='REFINE')}"></section>
+                    </div>
+                </details>
             </div>
 
 
 
+
+            <!-- اگر اندپوینت انتخاب‌شده فایل AI ندارد (یا اصلاً اندپوینتی انتخاب نشده): ai-box را نشان بده -->
+            <div th:if="${selectedEp == null or selectedEp.aiFiles == null or #lists.isEmpty(selectedEp.aiFiles)}" style="margin-top:12px">
+                <section th:replace="~{fragments/_ai-box :: aiBox(project=${project}, ctrl=${selectedCtrl}, ep=${selectedEp}, mode='NEW')}"></section>
+            </div>
+
+            <!-- ناوبری پایین صفحه -->
+            <div class="card" style="margin-top:12px;">
+                <div class="actions" style="justify-content:flex-end; gap:8px;">
+                    <a class="btn btn-secondary" th:href="@{'/wizard/' + ${project.id} + '/packages'}">← بازگشت به گام پکیج‌ها</a>
+                    <a class="btn btn-primary"    th:href="@{'/wizard/' + ${project.id} + '/final'}">ادامه → گام نهایی</a>
+                </div>
+            </div>
         </main>
     </div>
 </div>
 
-<!-- مودال‌ها و قالب‌های پنهان -->
-<th:block th:replace="~{fragments/_modals :: modals}"></th:block>
+<!-- قالب‌های پنهان و مودال اندپوینت -->
 <th:block th:replace="~{fragments/_templates-hidden :: hiddenTemplates}"></th:block>
+<th:block th:replace="~{fragments/_endpoint-modal :: endpointModal}"></th:block>
 
-<script th:src="@{/js/wizard-controllers.js?v=12}"></script>
+
+<!-- اسکریپت‌ها -->
+<script th:src="@{/js/wizard-controllers.js?v=14}"></script>
+<script>
+    // ساخت کنترلر جدید از سایدبار
+    function createNewController(projectId) {
+        const name = prompt('نام کنترلر را وارد کنید (مثل: OrderController):');
+        if (!name) return;
+        location.href = `/wizard/${encodeURIComponent(projectId)}/controllers?ctrl=${encodeURIComponent(name)}`;
+    }
+
+    // وصل کردن دکمه «کنترلر جدید +» در سایدبار
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.querySelector('[data-action="new-controller"]');
+        if (btn && !btn._wired) {
+            btn._wired = true;
+            const pid = btn.getAttribute('data-project-id');
+            btn.addEventListener('click', () => createNewController(pid));
+        }
+    });
+
+    // تغییر اندپوینت => رفرش با ctrl و ep جدید
+    (function () {
+        const sel  = document.getElementById('endpointSelect');
+        const pid  = document.getElementById('ctxProjectId')?.value || '';
+        const ctrl = document.getElementById('ctxCtrlName')?.value   || '';
+
+        if (!sel) return;
+
+        sel.addEventListener('change', () => {
+            if (!pid || !ctrl) return;
+            const ep = sel.value || '';
+            const url = ep
+                ? `/wizard/${encodeURIComponent(pid)}/controllers?ctrl=${encodeURIComponent(ctrl)}&ep=${encodeURIComponent(ep)}`
+                : `/wizard/${encodeURIComponent(pid)}/controllers?ctrl=${encodeURIComponent(ctrl)}`;
+            location.href = url;
+        });
+    })();
+</script>
 </body>
 </html>

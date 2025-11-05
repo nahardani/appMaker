@@ -8,8 +8,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -25,29 +30,49 @@ public class TemplateService {
         this.resourceLoader = resourceLoader;
     }
 
-    @Cacheable(value = "templates", key = "#section + '|' + #key + '|' + (#javaVersion==null?'any':#javaVersion) + '|' + (#language==null?'':#language)")
+    @Cacheable(
+            value = "templates",
+            key = "#section + '|' + #key + '|' + (#javaVersion==null?'any':#javaVersion) + '|' + (#language==null?'':#language)"
+    )
     public String getSnippet(String section, String key, String javaVersion, String language) {
-        String jv = (javaVersion == null || javaVersion.isBlank()) ? "any" : javaVersion.trim();
+        String jv   = (javaVersion == null || javaVersion.isBlank()) ? "any" : javaVersion.trim();
         String lang = (language == null || language.isBlank()) ? null : language.trim();
 
-        // 1) exact match
-        Optional<TemplateSnippet> t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(section, key, jv, lang);
-        if (t.isPresent()) return t.get().getContent();
+        // 1) exact match: (jv, lang)
+        String c = fetchDbContentNonBlank(section, key, jv, lang);
+        if (c != null) return c;
 
-        // 2) try javaVersion match with null language
-        t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(section, key, jv, null);
-        if (t.isPresent()) return t.get().getContent();
+        // 2) exact match: (jv, language == null)
+        c = fetchDbContentNonBlank(section, key, jv, null);
+        if (c != null) return c;
 
-        // 3) try 'any' variants
-        t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(section, key, "any", lang);
-        if (t.isPresent()) return t.get().getContent();
-        t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(section, key, "any", null);
-        if (t.isPresent()) return t.get().getContent();
+        // 3) 'any' + lang
+        c = fetchDbContentNonBlank(section, key, "any", lang);
+        if (c != null) return c;
 
-        // 4) fallback to classpath templates
+        // 4) 'any' + null
+        c = fetchDbContentNonBlank(section, key, "any", null);
+        if (c != null) return c;
+
+        // 5) fallback to classpath
         String fromClasspath = loadFromClasspath(section, key, jv, lang);
         return (fromClasspath == null) ? "" : fromClasspath;
     }
+
+    /** فقط اگر content غیرخالی باشد برمی‌گرداند؛ وگرنه null */
+    private String fetchDbContentNonBlank(String section, String key, String javaVersion, String language) {
+        Optional<TemplateSnippet> t;
+        if (language != null) {
+            t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(section, key, javaVersion, language);
+        } else {
+            t = repo.findFirstBySectionAndKeyNameAndJavaVersionAndLanguageIsNull(section, key, javaVersion);
+        }
+        if (t.isEmpty()) return null;
+        String content = t.get().getContent();
+        return (content != null && !content.isBlank()) ? content : null;
+    }
+
+
 
     private String loadFromClasspath(String section, String key, String javaVersion, String language) {
         String base = "classpath:scaffold-templates/" + section + "/";
@@ -98,6 +123,46 @@ public class TemplateService {
             repo.deleteById(id);
             evictCacheFor(t.getSection(), t.getKeyName(), t.getJavaVersion(), t.getLanguage());
         });
+    }
+
+
+    public void writeFromTpl(Path out,
+                             String section,
+                             String key,
+                             String javaVersion,
+                             String language,
+                             Object project,                 // برای سازگاری با امضای قبلی؛ استفاده نمی‌شود
+                             Map<String,String> vars) throws IOException {
+
+        // 1) دریافت متن تمپلیت (از DB یا classpath/scaffold-templates)
+        String tpl = getSnippet(section, key, javaVersion, language);
+        if (tpl == null || tpl.isBlank()) {
+            throw new IOException("Template not found: section=" + section + ", key=" + key
+                    + ", javaVersion=" + javaVersion + ", language=" + language);
+        }
+
+        // 2) جایگزینی ${...}
+        String rendered = render(tpl, (vars == null ? Map.of() : vars));
+
+        // 3) ایجاد دایرکتوری و نوشتن فایل
+        Files.createDirectories(out.getParent());
+        Files.writeString(out, rendered, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    /**
+     * جایگزینی سادهٔ placeholderها به فرم ${name}.
+     * اگر کلیدی در map نباشد، با رشتهٔ خالی جایگزین می‌شود.
+     */
+    public String render(String template, Map<String,String> vars) {
+        String out = template;
+        if (vars != null) {
+            for (Map.Entry<String, String> e : vars.entrySet()) {
+                String ph = "${" + e.getKey() + "}";
+                out = out.replace(ph, e.getValue() == null ? "" : e.getValue());
+            }
+        }
+        return out;
     }
 
 

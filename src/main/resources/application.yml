@@ -20,18 +20,40 @@ spring:
     enabled: false    # اگر از Mongo استفاده می‌کنی، بهتر است Flyway را غیرفعال کنی
     locations: classpath:db/migration
 
+
+
+  ai:
+    openai:
+      # base-url: https://api.openai.com   # اختیاری؛ بدون /v1
+      api-key: ${OPENAI_API_KEY:}
+      timeout: 60s
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.2
+          max-tokens: 1000
+
+    huggingface:
+      base-url: https://router.huggingface.co
+      api-key: ${HF_API_KEY:}
+      model: openai/gpt-oss-120b:groq
+
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: llama3:8b
+
+
+
 server:
   port: 8080
 
-# logging:
-#   level:
-#     root: debug
 
-# Cache settings (اگر از Caffeine استفاده کنی)
-# spring:
-#   cache:
-#     type: caffeine
 
-# src/main/resources/application.yml  (فقط بخش AI را اضافه کن)
+logging:
+  level:
+    org.springframework.web.client: DEBUG
+    org.springframework.ai.openai: TRACE
+    org.springframework.http.converter.json: TRACE
 
 

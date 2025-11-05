@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org">
+<html lang="fa" dir="rtl" xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html">
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -7,11 +7,14 @@
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
 </head>
 <body>
-<div class="header"><h1>Value Objects</h1>
+<div class="header">
+        <h1>Value Objects</h1>
     <div>
         <a th:href="@{/home}">بازگشت</a>
     </div>
 </div>
+
+
 <div class="container">
 
     <div class="card">
@@ -100,8 +103,9 @@
             </div>
 
             <div>
-                <label>محتوا</label>
-                <textarea name="content" rows="12" th:text="*{content}" placeholder="متن قالب..."></textarea>
+                <textarea dir="ltr" name="content" rows="20" cols="100" th:text="*{content}" placeholder="متن قالب..."></textarea>
+                <br>
+                <br>
             </div>
 
             <div class="actions" style="justify-content:flex-end">

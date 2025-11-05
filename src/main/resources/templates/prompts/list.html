@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-<div class="header"><h1>Value Objects</h1>
+<div class="header"><h1>prompts</h1>
     <div>
         <a th:href="@{/home}">بازگشت</a>
         <a th:href="@{/prompts/new}" class="btn btn-primary" style="margin-inline-start:8px">جدید</a>
@@ -59,7 +59,7 @@
         <table>
             <thead>
             <tr>
-                <th>نام</th><th>دسته</th><th>هدف</th><th>اسکوپ</th><th>جاوا</th><th>برچسب‌ها</th><th>وضعیت</th><th></th>
+                <th>نام</th><th>دسته</th><th>هدف</th><th>اسکوپ</th><th>جاوا</th><th>وضعیت</th><th></th>
             </tr>
             </thead>
             <tbody>
@@ -69,11 +69,11 @@
                 <td th:text="${p.target}">CONTROLLER</td>
                 <td th:text="${p.scope}">GLOBAL</td>
                 <td>
-                    <span th:text="${p.javaMin}">11</span>–<span th:text="${p.javaMax}">21</span>
+                    <span th:text="${p.javaVersion}">11</span>
                 </td>
-                <td>
-                    <span th:each="t : ${#strings.arraySplit(p.tags==null?'':p.tags,',')}" class="tag" th:text="${t}">rest</span>
-                </td>
+<!--                <td>-->
+<!--                    <span th:each="t : ${#strings.arraySplit(p.tags==null?'':p.tags,',')}" class="tag" th:text="${t}">rest</span>-->
+<!--                </td>-->
                 <td th:text="${p.status}">ACTIVE</td>
                 <td class="actions">
                     <a class="btn btn-secondary" th:href="@{'/prompts/' + ${p.id} + '/edit'}">ویرایش</a>

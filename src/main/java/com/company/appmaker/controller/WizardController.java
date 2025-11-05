@@ -2,25 +2,29 @@ package com.company.appmaker.controller;
 
 import com.company.appmaker.ai.draft.AiDraftStore;
 import com.company.appmaker.config.ProjectScaffolder;
-import com.company.appmaker.controller.forms.*;
+import com.company.appmaker.enums.PromptStatus;
+import com.company.appmaker.enums.PromptTarget;
 import com.company.appmaker.model.*;
 import com.company.appmaker.model.coctroller.ControllerDef;
 import com.company.appmaker.model.coctroller.EndpointDef;
 import com.company.appmaker.repo.ProjectRepository;
+import com.company.appmaker.repo.PromptTemplateRepo;
+import com.company.appmaker.service.PromptTemplate;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
-import org.springframework.http.*;
-import java.nio.file.Path;
 
+import static com.company.appmaker.ai.util.Utils.collectCommittedAiFiles;
 
 @Controller
 @Validated
@@ -30,57 +34,142 @@ public class WizardController {
     private final ProjectRepository repo;
     private final ProjectScaffolder scaffolder;
     private final AiDraftStore aiDraftStore;
+    private final PromptTemplateRepo promptRepo;
 
+    // همان لیست قفل‌شده‌ای که در PackageController داریم
+    private static final java.util.Set<String> CORE_LOCKED = java.util.Set.of(
+            "config","controller","service","repository","domain","dto",
+            "mapper","exception","configprops","common",
+            "swagger","i18n","client","security"
+    );
 
-    public WizardController(ProjectRepository repo, ProjectScaffolder scaffolder, AiDraftStore aiDraftStore) {
+    public WizardController(ProjectRepository repo,
+                            ProjectScaffolder scaffolder,
+                            AiDraftStore aiDraftStore,
+                            PromptTemplateRepo promptRepo) {
         this.repo = repo;
         this.scaffolder = scaffolder;
         this.aiDraftStore = aiDraftStore;
+        this.promptRepo = promptRepo;
     }
+
 
     @GetMapping("/controllers")
     public String controllers(@PathVariable String id,
                               @RequestParam(value = "ctrl", required = false) String ctrlName,
-                              @RequestParam(value = "ep", required = false) Integer epIndex,
+                              @RequestParam(value = "ep", required = false) String epName,
                               @RequestParam(value = "api", required = false) String apiSelected,
                               @RequestParam(value = "profile", required = false, defaultValue = "dev") String profile,
                               Model model) {
-
+        var controllerName = ctrlName;
+        // --- 1. یافتن پروژه
         var p = repo.findById(id).orElse(null);
         if (p == null) return "redirect:/projects";
 
+        // اطمینان از پکیج‌های حداقلی
+        ensureCorePackagesOnProject(p);
 
-        // پروژه برای همه فرگمنت‌ها
+        if (p.getControllers() == null)
+            p.setControllers(new java.util.ArrayList<>());
+
+        // --- 2. یافتن یا ساخت کنترلر انتخاب‌شده
+        ControllerDef selectedCtrl = null;
+        if (ctrlName != null && !ctrlName.isBlank()) {
+            selectedCtrl = p.getControllers().stream()
+                    .filter(c -> c != null && controllerName.equals(c.getName()))
+                    .findFirst().orElse(null);
+
+            // اگر وجود ندارد → بساز
+            if (selectedCtrl == null) {
+                selectedCtrl = new ControllerDef();
+                selectedCtrl.setName(ctrlName.trim());
+                selectedCtrl.setType("REST");
+                selectedCtrl.setEndpoints(new java.util.ArrayList<>());
+
+                String defaultBasePath = (p.getMs() != null && p.getMs().getBasePath() != null && !p.getMs().getBasePath().isBlank())
+                        ? p.getMs().getBasePath().trim()
+                        : "/api";
+                selectedCtrl.setBasePath(defaultBasePath);
+
+                p.getControllers().add(selectedCtrl);
+                repo.save(p);
+            }
+        }
+
+        // اگر هنوز کنترلری انتخاب نشده اما پروژه کنترلر دارد → اولی را بگیر
+        if (selectedCtrl == null && !p.getControllers().isEmpty()) {
+            selectedCtrl = p.getControllers().get(0);
+            ctrlName = selectedCtrl.getName();
+        }
+
+        // --- 3. یافتن یا انتخاب اندپوینت
+        com.company.appmaker.model.coctroller.EndpointDef selectedEp = null;
+        if (selectedCtrl != null && selectedCtrl.getEndpoints() != null && !selectedCtrl.getEndpoints().isEmpty()) {
+            if (epName != null && !epName.isBlank()) {
+                selectedEp = selectedCtrl.getEndpoints().stream()
+                        .filter(e -> e != null && epName.equals(e.getName()))
+                        .findFirst().orElse(null);
+            }
+            // اگر اندپوینت مشخص نشده، اولی را انتخاب کن
+            if (selectedEp == null)
+                selectedEp = selectedCtrl.getEndpoints().get(0);
+        }
+
+        // --- 4. فایل‌های AI مربوط به اندپوینت انتخاب‌شده
+        List<Project.GeneratedFile> aiCommitted =
+                (selectedEp != null && selectedEp.getAiFiles() != null)
+                        ? selectedEp.getAiFiles()
+                        : java.util.List.of();
+
+        boolean hasCommitted = !aiCommitted.isEmpty();
+
+        // --- 5. stash فعلی (تعداد فایل‌های تولیدشده و هنوز commit‌نشده)
+        var stash = aiDraftStore.get(id);
+        int stashCount = (stash == null) ? 0 : stash.size();
+
+        // --- 6. فرم کنترلر/اندپوینت (برای بخش form)
+        ControllerForm form = buildControllerForm(p, ctrlName, null);
+
+        // --- 7. پرامپت‌های فعال مرتبط با CONTROLLER
+        java.util.List<PromptTemplate> prompts;
+        try {
+            prompts = promptRepo.findAll().stream()
+                    .filter(t -> t != null
+                            && t.getStatus() == PromptStatus.ACTIVE
+                            && t.getTarget() == PromptTarget.CONTROLLER)
+                    .toList();
+        } catch (Exception ex) {
+            prompts = java.util.List.of();
+        }
+
+        // --- 8. تعیین حالت صفحه
+        // NEW: هنوز هیچ کنترلری وجود ندارد
+        // EMPTY: کنترلر انتخاب‌شده دارد ولی اندپوینت یا فایل AI ندارد
+        // COMMITTED: اندپوینت انتخاب‌شده فایل‌های AI دارد
+        String mode;
+        if (selectedCtrl == null) {
+            mode = "NEW";
+        } else if (selectedEp == null || !hasCommitted) {
+            mode = "EMPTY";
+        } else {
+            mode = "COMMITTED";
+        }
+
+        // --- 9. افزودن داده‌ها به مدل
         model.addAttribute("project", p);
-
-        // ===== داده‌های کمکی UI (ثابت‌ها) =====
-        model.addAttribute("types", List.of("REST"));
-        model.addAttribute("httpMethods", List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
-        model.addAttribute("httpMethodsAll", List.of("GET", "POST", "PUT", "PATCH", "DELETE", "ANY"));
-        model.addAttribute("paramLocations", List.of("PATH", "QUERY", "HEADER"));
-        model.addAttribute("javaTypes", List.of("String", "Long", "Integer", "Double", "Boolean", "UUID", "LocalDate", "LocalDateTime"));
-
-        // External APIs کمکی
-        model.addAttribute("apiAuthTypes", List.of("NONE", "BASIC", "BEARER", "API_KEY"));
-        model.addAttribute("apiKeyInOptions", List.of("HEADER", "QUERY"));
-        model.addAttribute("httpMethodsApi", List.of("GET", "POST"));
-
-        // ===== فرم کنترلر/اندپوینت =====
-        ControllerForm form = buildControllerForm(p, ctrlName, epIndex);
         model.addAttribute("form", form);
-
-
-        // برای DropDown سطح لاگ
-        model.addAttribute("logLevels", List.of("TRACE", "DEBUG", "INFO", "WARN", "ERROR"));
-
-
-        // WizardController.java (route: GET /wizard/{id}/settings)
-        var constantsForm = ConstantsForm.from(p.getConstants());
-        model.addAttribute("constantsForm", constantsForm);
-
+        model.addAttribute("prompts", prompts);
+        model.addAttribute("selectedCtrl", selectedCtrl);
+        model.addAttribute("selectedEp", selectedEp);
+        model.addAttribute("aiCommitted", aiCommitted);
+        model.addAttribute("hasCommitted", hasCommitted);
+        model.addAttribute("stashCount", stashCount);
+        model.addAttribute("mode", mode);
 
         return "wizard-controllers";
     }
+
+
 
     @PostMapping("/controllers")
     public String controllersAdd(@PathVariable String id,
@@ -109,7 +198,7 @@ public class WizardController {
             p.getControllers().add(ctrl);
         }
 
-        // همیشه متای کنترلر را از فرم به‌روز کن (rename هم پشتیبانی می‌شود)
+        // همیشه متادیتای کنترلر را از فرم به‌روز کن (rename هم پشتیبانی می‌شود)
         ctrl.setBasePath(form.getBasePath());
         ctrl.setType(form.getType());
         if (!ctrl.getName().equals(form.getName())) ctrl.setName(form.getName());
@@ -200,7 +289,6 @@ public class WizardController {
         ep.getResponseFields().clear();
 
         repo.save(p);
-        // بعد از ذخیره، برگردیم به حالت ویرایش همین کنترلر (برای ادامه کار)
         return "redirect:/wizard/" + id + "/controllers?ctrl=" + ctrl.getName();
     }
 
@@ -222,26 +310,24 @@ public class WizardController {
         var p = repo.findById(id).orElse(null);
         if (p == null) return ResponseEntity.notFound().build();
 
-        // 1) هیدراته کردن پروژه با فایل‌های AI از حافظه
-        var aiFiles = aiDraftStore.get(id); // List<CodeFile>
-        if (aiFiles != null && !aiFiles.isEmpty()) {
-            p.setGeneratedFiles(toGenerated(aiFiles)); // ← تبدیل به GeneratedFile
-        }
+        // 1) فقط فایل‌های AI کامیت‌شده در دیتابیس (از همهٔ کنترلرها)
+        var committed = collectCommittedAiFiles(p);
+        p.setGeneratedFiles(committed);
 
         // 2) ساخت ZIP
-        byte[] zip;
+        final byte[] zip;
         try {
-            zip = scaffolder.scaffoldZip(p); // داخلش scaffoldToDirectory را روی temp انجام می‌دهد
+            zip = scaffolder.scaffoldZip(p);
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
 
+        // 3) نام فایل خروجی
         String fileName = (p.getProjectName() == null || p.getProjectName().isBlank())
                 ? "project.zip"
-                : p.getProjectName().trim().replaceAll("[^A-Za-z0-9-]", "-").replaceAll("^-+|-+$", "") + ".zip";
-
-        // (اختیاری) بعد از تولید نهایی می‌تونی stash را پاک کنی
-        // aiDraftStore.clear(id);
+                : p.getProjectName().trim()
+                .replaceAll("[^A-Za-z0-9-]", "-")
+                .replaceAll("^-+|-+$", "") + ".zip";
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -257,20 +343,16 @@ public class WizardController {
         if (p == null) return "redirect:/projects";
 
         try {
-            var aiFiles = aiDraftStore.get(id); // List<CodeFile>
-            if (aiFiles != null && !aiFiles.isEmpty()) {
-                p.setGeneratedFiles(toGenerated(aiFiles)); // ← تبدیل به GeneratedFile
-            }
+            // 1) فقط فایل‌های AI کامیت‌شده در دیتابیس
+            var committed = collectCommittedAiFiles(p);
+            p.setGeneratedFiles(committed);
 
             // 2) مسیر خروجی
             var safeName = safeFileName(p.getProjectName());
             var out = Path.of(targetPath).resolve(safeName);
 
-            // 3) اسکفولد نهایی (مرج AI درون scaffoldToDirectory انجام می‌شود)
+            // 3) اسکفولد نهایی
             scaffolder.scaffoldToDirectory(p, out);
-
-            // (اختیاری) پاکسازی stash
-            // aiDraftStore.clear(id);
 
             return "redirect:/wizard/" + id + "/final?msg=" + url("پروژه در مسیر ذخیره شد: " + out);
         } catch (Exception e) {
@@ -280,37 +362,20 @@ public class WizardController {
 
 
 
-    @PostMapping("/controllers/{ctrlName}/endpoints/{index}/delete")
-    public String deleteEndpoint(@PathVariable String id,
-                                 @PathVariable String ctrlName,
-                                 @PathVariable int index) {
-        var p = load(id).orElse(null);
-        if (p == null) return "redirect:/projects";
-        var ctrl = p.getControllers().stream().filter(c -> c.getName().equals(ctrlName)).findFirst().orElse(null);
-        if (ctrl != null && ctrl.getEndpoints() != null && index >= 0 && index < ctrl.getEndpoints().size()) {
-            ctrl.getEndpoints().remove(index);
-            repo.save(p);
-        }
-        return "redirect:/wizard/" + id + "/controllers?ctrl=" + ctrlName;
-    }
 
     @PostMapping("/controllers/{ctrlName}/delete")
     public String deleteController(@PathVariable String id,
                                    @PathVariable("ctrlName") String ctrlName) {
         var p = repo.findById(id).orElse(null);
         if (p == null) return "redirect:/projects";
-
         p.getControllers().removeIf(c -> c != null && ctrlName.equals(c.getName()));
         repo.save(p);
-
         return "redirect:/wizard/" + id + "/controllers";
     }
-
 
     private ControllerForm buildControllerForm(Project p, String ctrlName, Integer epIndex) {
         ControllerForm form = new ControllerForm();
 
-        // حالت "کنترلر جدید"
         if (ctrlName == null || ctrlName.isBlank()) {
             form.setEditing(false);
             form.setType("REST");
@@ -332,82 +397,55 @@ public class WizardController {
             return form;
         }
 
-        // متادیتای کنترلر
         form.setEditing(true);
         form.setOriginalControllerName(ctrl.getName());
         form.setName(ctrl.getName());
         form.setBasePath(ctrl.getBasePath());
         form.setType(ctrl.getType());
 
-        // انتخاب امن endpoint:
         var eps = ctrl.getEndpoints();
         Integer idx = null;
         if (eps != null && !eps.isEmpty()) {
             if (epIndex != null && epIndex >= 0 && epIndex < eps.size()) {
                 idx = epIndex;
-            } else {
-                idx = 0; // اگر چیزی انتخاب نشده بود، اولین اندپوینت
-            }
+            } else idx = 0;
         }
         form.setEndpointIndex(idx);
 
         if (idx != null) {
             var e = eps.get(idx);
-
-            // HTTP method
             form.setHttpMethod(e.getHttpMethod() == null ? "GET" : e.getHttpMethod());
-
-            // مسیر نسبی
             String path = e.getPath();
             form.setUseEndpointPath(path != null && !path.isBlank());
             form.setEndpointPath(path);
-
-            // نام متد جاوا
             form.setEndpointName(e.getName());
-
-            // پارامترها
-            form.setParams(
-                    e.getParams() == null ? new ArrayList<>() :
-                            e.getParams().stream()
-                                    .map(pd -> new ParamSlot(pd.getName(), pd.getIn(), pd.getJavaType(), pd.isRequired()))
-                                    .collect(Collectors.toList())
-            );
-
-            // بدنهٔ درخواست
-            form.setRequestFields(
-                    e.getRequestFields() == null ? new ArrayList<>() :
-                            e.getRequestFields().stream()
-                                    .map(fd -> new FieldSlot(fd.getName(), fd.getJavaType(), fd.isRequired()))
-                                    .collect(Collectors.toList())
-            );
-
-            // پاسخ چندبخشی
-            form.setResponseParts(
-                    e.getResponseParts() == null ? new ArrayList<>() :
-                            e.getResponseParts().stream().map(rp -> {
-                                var slot = new ResponsePartSlot();
-                                slot.setName(rp.getName());
-                                slot.setContainer(rp.getContainer());
-                                slot.setKind(rp.getKind());
-                                slot.setScalarType(rp.getScalarType());
-                                slot.setObjectName(rp.getObjectName());
-                                slot.setFields(
-                                        rp.getFields() == null ? new ArrayList<>() :
-                                                rp.getFields().stream()
-                                                        .map(ff -> new FieldSlot(ff.getName(), ff.getJavaType(), ff.isRequired()))
-                                                        .collect(Collectors.toList())
-                                );
-                                return slot;
-                            }).collect(Collectors.toList())
-            );
-
+            form.setParams(e.getParams() == null ? new ArrayList<>() :
+                    e.getParams().stream()
+                            .map(pd -> new ParamSlot(pd.getName(), pd.getIn(), pd.getJavaType(), pd.isRequired()))
+                            .collect(Collectors.toList()));
+            form.setRequestFields(e.getRequestFields() == null ? new ArrayList<>() :
+                    e.getRequestFields().stream()
+                            .map(fd -> new FieldSlot(fd.getName(), fd.getJavaType(), fd.isRequired()))
+                            .collect(Collectors.toList()));
+            form.setResponseParts(e.getResponseParts() == null ? new ArrayList<>() :
+                    e.getResponseParts().stream().map(rp -> {
+                        var slot = new ResponsePartSlot();
+                        slot.setName(rp.getName());
+                        slot.setContainer(rp.getContainer());
+                        slot.setKind(rp.getKind());
+                        slot.setScalarType(rp.getScalarType());
+                        slot.setObjectName(rp.getObjectName());
+                        slot.setFields(rp.getFields() == null ? new ArrayList<>() :
+                                rp.getFields().stream()
+                                        .map(ff -> new FieldSlot(ff.getName(), ff.getJavaType(), ff.isRequired()))
+                                        .collect(Collectors.toList()));
+                        return slot;
+                    }).collect(Collectors.toList()));
         } else {
             form.setHttpMethod("GET");
             ensureControllerLists(form);
         }
-
         if (form.getHttpMethod() == null) form.setHttpMethod("GET");
-
         return form;
     }
 
@@ -430,66 +468,18 @@ public class WizardController {
         return sb.toString();
     }
 
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Data
-    public static class ControllerForm {
-        @NotBlank
-        private String name;
-        @NotBlank
-        private String basePath;
-        @NotBlank
-        private String type;
-        @NotBlank
-        private String httpMethod; // GET/POST/PUT/PATCH/DELETE
-        private String endpointPath;
-        private String endpointName;
-        private String responseType;
-        private Boolean responseList;
-        private Boolean editing = false;
-        private String originalControllerName;
-        private Integer endpointIndex;
-        private List<ParamSlot> params = new ArrayList<>();
-        private List<FieldSlot> requestFields = new ArrayList<>();  // فقط وقتی POST
-        private Boolean useEndpointPath;
-        private String responseContainer;
-        private String responseModelKind;
-        private String responseScalarType;
-        private String responseObjectName;
-        private List<FieldSlot> responseFields = new java.util.ArrayList<>();
-        private List<ResponsePartSlot> responseParts = new java.util.ArrayList<>();
-        private String description;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ParamSlot {
-        private String name;
-        private String in;
-        private String javaType;
-        private Boolean required;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class FieldSlot {
-        private String name;
-        private String javaType;
-        private Boolean required;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ResponsePartSlot {
-        private String name;          // نام فیلد خروجی
-        private String container;     // SINGLE | LIST
-        private String kind;          // SCALAR | OBJECT
-        private String scalarType;    // اگر SCALAR
-        private String objectName;    // اگر OBJECT
-        private List<FieldSlot> fields = new ArrayList<>();
+    // تضمین بسته‌های قفل‌شده روی شیء پروژه (یک‌بار)
+    private void ensureCorePackagesOnProject(Project p) {
+        var set = new java.util.LinkedHashSet<String>();
+        if (p.getPackages() != null) {
+            for (var s : p.getPackages()) if (s != null)
+                set.add(s.trim().toLowerCase(Locale.ROOT));
+        }
+        if (!set.containsAll(CORE_LOCKED)) {
+            set.addAll(CORE_LOCKED);
+            p.setPackages(new ArrayList<>(set));
+            repo.save(p);
+        }
     }
 
     private Optional<Project> load(String id) {
@@ -509,18 +499,156 @@ public class WizardController {
         }
     }
 
-
-    private static java.util.List<Project.GeneratedFile>
-    toGenerated(java.util.List<com.company.appmaker.ai.dto.CodeFile> files) {
+    private static java.util.List<Project.GeneratedFile> toGenerated(
+            java.util.List<com.company.appmaker.ai.dto.CodeFile> files) {
         if (files == null || files.isEmpty()) return java.util.List.of();
         var out = new java.util.ArrayList<Project.GeneratedFile>(files.size());
         for (var f : files) {
             if (f == null || f.path() == null || f.path().isBlank()) continue;
+            if (!f.path().endsWith(".java")) continue; // فقط جاوا
             out.add(new Project.GeneratedFile(f.path(), f.content()));
         }
         return out;
     }
 
 
-}
 
+    @AllArgsConstructor @NoArgsConstructor @Data
+    public static class ControllerForm {
+        @NotBlank private String name;
+        @NotBlank private String basePath;
+        @NotBlank private String type;
+        @NotBlank private String httpMethod;
+        private String endpointPath;
+        private String endpointName;
+        private String responseType;
+        private Boolean responseList;
+        private Boolean editing = false;
+        private String originalControllerName;
+        private Integer endpointIndex;
+        private List<ParamSlot> params = new ArrayList<>();
+        private List<FieldSlot> requestFields = new ArrayList<>();
+        private Boolean useEndpointPath;
+        private String responseContainer;
+        private String responseModelKind;
+        private String responseScalarType;
+        private String responseObjectName;
+        private List<FieldSlot> responseFields = new java.util.ArrayList<>();
+        private List<ResponsePartSlot> responseParts = new java.util.ArrayList<>();
+        private String description;
+    }
+    @Data @AllArgsConstructor @NoArgsConstructor public static class ParamSlot { private String name; private String in; private String javaType; private Boolean required; }
+    @Data @AllArgsConstructor @NoArgsConstructor public static class FieldSlot { private String name; private String javaType; private Boolean required; }
+    @Data @AllArgsConstructor @NoArgsConstructor public static class ResponsePartSlot {
+        private String name; private String container; private String kind; private String scalarType; private String objectName;
+        private List<FieldSlot> fields = new ArrayList<>();
+    }
+
+
+    @PostMapping("/controllers/{ctrlName}/ai/commit")
+    @ResponseBody
+    public Map<String, Object> commitAiFilesToController(@PathVariable String id,
+                                                         @PathVariable String ctrlName,
+                                                         @RequestParam(name = "clearStash", defaultValue = "false") boolean clearStash) {
+
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return Map.of("ok", false, "message", "Project not found");
+
+        var aiFiles = aiDraftStore.get(id); // List<CodeFile>
+        if (aiFiles == null || aiFiles.isEmpty()) {
+            return Map.of("ok", false, "message", "No AI files in stash. Run generate first.");
+        }
+
+        if (p.getControllers() == null) p.setControllers(new ArrayList<>());
+
+        // پیدا یا ساخت کنترلر
+        var ctrl = p.getControllers().stream()
+                .filter(c -> c != null && ctrlName.equals(c.getName()))
+                .findFirst().orElse(null);
+
+        if (ctrl == null) {
+            ctrl = new com.company.appmaker.model.coctroller.ControllerDef();
+            ctrl.setName(ctrlName);
+            ctrl.setType("REST");
+            String basePath = (p.getMs() != null && p.getMs().getBasePath() != null && !p.getMs().getBasePath().isBlank())
+                    ? p.getMs().getBasePath().trim()
+                    : "/api/" + safeFileName(p.getProjectName()).replace("-", "");
+            ctrl.setBasePath(basePath);
+            ctrl.setDefaultHttpMethod("GET");
+            p.getControllers().add(ctrl);
+        }
+
+        // تبدیل CodeFile → Project.GeneratedFile
+        var generated = toGenerated(aiFiles);
+        if (generated == null || generated.isEmpty()) {
+            return Map.of("ok", false, "message", "AI files are not mappable.");
+        }
+
+        // ⬅️ ذخیره در خود کنترلر
+        if (ctrl.getAiFiles() == null) ctrl.setAiFiles(new ArrayList<>());
+        ctrl.getAiFiles().clear();
+        ctrl.getAiFiles().addAll(generated);
+
+        repo.save(p);
+        if (clearStash) aiDraftStore.clear(id);
+
+        return Map.of("ok", true, "message", "AI files committed to controller: " + ctrlName, "files", generated.size());
+    }
+
+
+    @PostMapping("/controllers/{ctrlName}/ai/save")
+    @ResponseBody
+    public Map<String,Object> saveAiFiles(@PathVariable String id,
+                                          @PathVariable String ctrlName,
+                                          @RequestBody SaveAiRequest req){
+        var p = repo.findById(id).orElse(null);
+        if (p == null) return Map.of("ok", false, "message", "Project not found");
+
+        // پیدا/ایجاد کنترلر
+        var ctrl = (p.getControllers()==null)? null :
+                p.getControllers().stream()
+                        .filter(c -> c!=null && ctrlName.equals(c.getName()))
+                        .findFirst().orElse(null);
+        if (ctrl == null) {
+            ctrl = new ControllerDef();
+            ctrl.setName(ctrlName);
+            ctrl.setBasePath(p.getMs()!=null ? p.getMs().getBasePath() : "/api");
+            ctrl.setType("REST");
+            if (p.getControllers()==null) p.setControllers(new java.util.ArrayList<>());
+            p.getControllers().add(ctrl);
+        }
+
+        if (ctrl.getAiFiles()==null || ctrl.getAiFiles().isEmpty())
+            return Map.of("ok", false, "message", "هیچ فایل AI برای این کنترلر ثبت نشده است.");
+
+        // اعمال ویرایش‌ها (index یا path)
+        var list = ctrl.getAiFiles();
+        for (var f : req.files) {
+            if (f.index != null && f.index >= 0 && f.index < list.size()) {
+                var cur = list.get(f.index);
+                cur.setContent(f.content != null ? f.content : cur.getContent());
+            } else if (f.path != null) {
+                list.stream().filter(x -> f.path.equals(x.getPath())).findFirst()
+                        .ifPresent(cur -> cur.setContent(f.content != null ? f.content : cur.getContent()));
+            }
+        }
+        repo.save(p);
+        return Map.of("ok", true);
+    }
+
+
+
+    @Data
+    public static class SaveAiRequest {
+        public List<EndpointController.SaveAiRequest.Item> files;
+        @Data
+        public static class Item {
+            public Integer index;
+            public String  path;
+            public String  content;
+        }
+    }
+
+
+
+}

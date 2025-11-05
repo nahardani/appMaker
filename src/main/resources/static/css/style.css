@@ -1,8 +1,14 @@
 :root {
-    --bg: #0b132b;
-    --panel: #1c2541;
-    --accent: #5bc0be;
-    --text: #e0fbfc;
+    --bg:#101a2b;
+    --panel:#152236;
+    --panel-2:#0f1b2d;
+    --muted:#96a0b3;
+    --line:#233348;
+    --text:#e8f1ff;
+    --accent:#4dd0cf;     /* همان سبز-آبی دکمه‌ها در صفحات قبلی */
+    --accent-2:#2cb4b4;
+    --danger:#ef4444;
+    --chip-bg:#0e2236;
 }
 
 body {
@@ -116,15 +122,15 @@ th, td {
 }
 
 /* === Fix: dark select dropdown contrast === */
-select {
-    color: #e6f3ff; /* رنگ متن انتخاب‌شده */
-    background: #142333; /* پس‌زمینه خود select */
-    border: 1px solid #2a3a4c;
-    height: 40px;
-    line-height: 40px;
-    border-radius: 10px;
-    direction: rtl;
-}
+/*select {*/
+/*    color: #e6f3ff; !* رنگ متن انتخاب‌شده *!*/
+/*    background: #142333; !* پس‌زمینه خود select *!*/
+/*    border: 1px solid #2a3a4c;*/
+/*    height: 40px;*/
+/*    line-height: 40px;*/
+/*    border-radius: 10px;*/
+/*    direction: rtl;*/
+/*}*/
 
 select:focus {
     outline: 2px solid #33c0b5;
@@ -143,3 +149,58 @@ select::-ms-expand {
 }
 
 /* IE/Edge قدیمی */
+
+
+.customCheck {
+        width: 100%;
+        padding: 10px;
+        margin: 6px 0 12px 0;
+        border-radius: 8px;
+        border: 1px solid #2c3e50;
+        background: #0e1a2b;
+        color: var(--text);
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center
+}
+
+.modal-content {
+    width: min(720px, 95vw);
+    background: #0f1520;
+    border: 1px solid #273042;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .35)
+}
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #273042
+}
+
+.modal-body {
+    padding: 12px 16px
+}
+
+.modal-actions {
+    padding: 12px 16px;
+    border-top: 1px solid #273042;
+    display: flex
+}
+
+
+/* Cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.25);padding:12px;margin-bottom:16px}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.card-head h3{margin:0;font-size:15px;font-weight:800}
+
+.actions{display:flex;gap:8px;align-items:center}

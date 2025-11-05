@@ -25,7 +25,7 @@ public class ProfileSettings {
     public static class EnvProfile {
         private Integer serverPort;             // server.port
         private String  loggingLevelRoot;       // logging.level.root (e.g. INFO/DEBUG)
-        private List<String> includes = new ArrayList<>(); // spring.profiles.include
+        private List<String> includes = new ArrayList<>(); // profiles.include
         // فضای آزاد برای پراپرتی‌های اختصاصی هر محیط، به‌صورت YAML (بعداً در Scaffolding تزریق می‌کنیم)
         private String extraYaml;
 

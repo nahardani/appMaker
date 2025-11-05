@@ -12,5 +12,6 @@ public interface DomainPropertyRepo extends MongoRepository<DomainProperty, Stri
 
     @Query("{ 'status':'ACTIVE', 'group': ?0 }")
     List<DomainProperty> findActiveByGroup(String group);
+
 }
 

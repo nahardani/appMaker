@@ -21,17 +21,17 @@ body{background:#0e1626;color:var(--text)}
 .header .muted{color:var(--muted);font-size:12px}
 
 /* Buttons */
-.btn{
-    display:inline-flex;align-items:center;gap:8px;
-    background:var(--accent);border:1px solid var(--accent);color:#062026;
-    padding:8px 14px;border-radius:12px;cursor:pointer;text-decoration:none;font-weight:600
-}
-.btn:hover{background:var(--accent-2);border-color:var(--accent-2)}
-.btn.btn-secondary{background:transparent;color:var(--text);border-color:var(--line)}
-.btn.btn-secondary:hover{background:var(--panel)}
-.btn.btn-primary{background:var(--accent);color:#062026;border-color:var(--accent)}
-.btn.btn-danger{background:transparent;color:var(--danger);border-color:var(--danger)}
-.btn.btn-sm{padding:6px 10px;border-radius:10px;font-size:12px}
+/*.btn{*/
+/*    display:inline-flex;align-items:center;gap:8px;*/
+/*    background:var(--accent);border:1px solid var(--accent);color:#062026;*/
+/*    padding:8px 14px;border-radius:12px;cursor:pointer;text-decoration:none;font-weight:600*/
+/*}*/
+/*.btn:hover{background:var(--accent-2);border-color:var(--accent-2)}*/
+/*.btn.btn-secondary{background:transparent;color:var(--text);border-color:var(--line)}*/
+/*.btn.btn-secondary:hover{background:var(--panel)}*/
+/*.btn.btn-primary{background:var(--accent);color:#062026;border-color:var(--accent)}*/
+/*.btn.btn-danger{background:transparent;color:var(--danger);border-color:var(--danger)}*/
+/*.btn.btn-sm{padding:6px 10px;border-radius:10px;font-size:12px}*/
 
 /* Layout (side + main) */
 .layout{display:grid;grid-template-columns:300px 1fr;gap:16px}
@@ -66,13 +66,13 @@ input[type=checkbox]{transform:scale(1.08);accent-color:var(--accent)}
 
 /* Side list */
 .side .list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.list-row{display:flex;align-items:center;gap:8px}
+.list-row{display:flex;align-items:center;gap:8px;padding: 5px;}
 .list-link{flex:1;justify-content:space-between}
 .chip{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;background:var(--chip-bg)}
 
 /* Icon delete button */
-.icon-btn{border:1px solid var(--line);background:transparent;color:var(--danger);
-    width:36px;height:36px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-btn{border:1px solid var(--line);background:transparent;color:var(--danger)
+    ;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .icon-btn:hover{background:#2a2131}
 .icon{width:18px;height:18px}
 

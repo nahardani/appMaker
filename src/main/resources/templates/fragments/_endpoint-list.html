@@ -1,0 +1,38 @@
+<!-- templates/fragments/_endpoint-list.html -->
+<div th:fragment="endpointList(project, ctrl)">
+    <div class="card">
+        <div class="card-head">
+            <h3>
+                اندپوینت‌های کنترلر
+                <span class="tag" th:text="${ctrl.name}">Controller</span>
+            </h3>
+        </div>
+
+        <div th:if="${ctrl.endpoints == null or #lists.isEmpty(ctrl.endpoints)}" class="muted">
+            هنوز اندپوینتی ثبت نشده است.
+        </div>
+
+        <table th:if="${ctrl.endpoints != null and !#lists.isEmpty(ctrl.endpoints)}" class="table">
+            <thead>
+            <tr><th>#</th><th>نام متد</th><th>HTTP</th><th>Path</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="e,stat : ${ctrl.endpoints}">
+                <td th:text="${stat.index + 1}">1</td>
+                <td th:text="${e.name}">getById</td>
+                <td th:text="${e.httpMethod}">GET</td>
+                <td th:text="${e.path}">/customers/{id}</td>
+                <td>
+                    <form th:action="@{'/wizard/' + ${project.id} + '/controllers/' + ${ctrl.name} + '/endpoints/' + ${stat.index} + '/delete'}"
+                          method="post"
+                          th:attr="onsubmit=|return confirm('حذف اندپوینت «${e.name}»؟');|"
+                          class="inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit" class="btn btn-danger">حذف</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -7,14 +7,16 @@
     <style>.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}</style>
 </head>
 <body>
-<div class="header">
-    <h1>پروژه‌ها</h1>
-    <a th:href="@{/projects}">بازگشت</a>
+
+<div>
+    <th:block th:replace="fragments/_header :: topbar(
+        title='ایجاد / ویرایش پروژه',
+        project=${project})"></th:block>
 </div>
 
 <div class="container">
 
-    <form class="card" th:action="@{/projects}" method="post" th:object="${project}">
+    <form class="card" th:action="@{/projects}" method="post" th:object="${form}">
         <h2>اطلاعات پایه</h2>
         <div class="grid-3">
             <div>
@@ -28,63 +30,24 @@
             <div>
                 <label>نسخه جاوا</label>
                 <select th:field="*{javaVersion}">
-                    <option value="8">8</option>
-                    <option value="11">11</option>
-                    <option selected value="17">17</option>
-                    <option value="21">21</option>
+                    <option th:each="v : ${javaVersions}" th:value="${v}" th:text="${v}"></option>
                 </select>
             </div>
         </div>
 
-        <h2 style="margin-top:16px;">Service Profile (Microservice)</h2>
+        <h2 style="margin-top:16px;">انتخاب پروفایل میکروسرویس</h2>
         <div class="grid-3">
             <div>
-                <label>Service name</label>
-                <input th:field="*{ms.serviceName}" placeholder="orders" required/>
-            </div>
-            <div>
-                <label>Base package</label>
-                <input th:field="*{ms.basePackage}" placeholder="com.company.orders" required/>
-            </div>
-            <div>
-                <label>Base path</label>
-                <input th:field="*{ms.basePath}" placeholder="/api/orders" required/>
-            </div>
-            <div>
-                <label>API version</label>
-                <input th:field="*{ms.apiVersion}" placeholder="v1"/>
-            </div>
-            <div>
-                <label>Java</label>
-                <select th:field="*{ms.javaVersion}">
-                    <option value="8">8</option>
-                    <option value="11">11</option>
-                    <option selected value="17">17</option>
-                    <option value="21">21</option>
+                <label>پروفایل</label>
+                <select th:field="*{profileId}">
+                    <option value="">— بدون پروفایل —</option>
+                    <option th:each="mp : ${microProfiles}" th:value="${mp.id}"
+                            th:text="${mp.name + ' — ' + mp.basePackage}">Web+Mongo</option>
                 </select>
+                <div class="muted" style="margin-top:6px;">
+                    <a th:href="@{/profiles}">مدیریت پروفایل‌ها…</a>
+                </div>
             </div>
-            <div>
-                <label>Persistence</label>
-                <select th:field="*{ms.useMongo}">
-                    <option th:value="true">MongoDB</option>
-                    <option th:value="false" disabled>JPA (later)</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="grid-3" style="margin-top:8px">
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.useUlidIds}"/> Use ULID IDs</div>
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableActuator}"/> Actuator</div>
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableOpenApi}"/> OpenAPI</div>
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableValidation}"/> Validation</div>
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableMetrics}"/> Metrics</div>
-            <div class="grid-3" style="margin-top:8px"><input type="checkbox" th:field="*{ms.enableSecurityBasic}"/> Basic Security</div>
-        </div>
-
-        <div class="grid-3" style="margin-top:8px">
-            <input type="checkbox" th:field="*{ms.addDockerfile}"/> Dockerfile
-            <input type="checkbox" th:field="*{ms.addCompose}"/> docker-compose (Mongo)
-            <input type="checkbox" th:field="*{ms.enableTestcontainers}"/> Testcontainers
         </div>
 
         <div class="actions" style="justify-content:flex-end;margin-top:12px;">
@@ -93,7 +56,6 @@
         </div>
     </form>
 
-    <!-- فهرست پروژه‌ها (اگر لازم است) -->
     <div class="card" style="margin-top:16px;" th:if="${projects != null}">
         <h3>لیست پروژه‌ها</h3>
         <table>

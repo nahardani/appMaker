@@ -11,4 +11,9 @@ public interface TemplateSnippetRepository extends MongoRepository<TemplateSnipp
 
     Optional<TemplateSnippet> findFirstBySectionAndKeyNameAndJavaVersionAndLanguage(
             String section, String keyName, String javaVersion, String language);
+
+    Optional<TemplateSnippet> findFirstBySectionAndKeyNameAndJavaVersionAndLanguageIsNull(
+            String section, String key, String javaVersion
+    );
+
 }

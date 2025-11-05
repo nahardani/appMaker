@@ -45,9 +45,11 @@
     </style>
 </head>
 <body>
-<div class="header">
-    <h1>گام نهایی — خروجی پروژه</h1>
-    <a th:href="@{/projects}">بازگشت</a>
+
+<div>
+    <th:block th:replace="fragments/_header :: topbar(
+        title='تولید پروژه ',
+        project=${project})"></th:block>
 </div>
 
 <div class="container">

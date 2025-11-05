@@ -1,39 +1,140 @@
-<!— fragments/_modals.html —>
+<!-- templates/fragments/_modals.html -->
 <div th:fragment="modals">
-    <div class="modal" id="reqModal">
-        <div class="dialog">
-            <h4>فیلدهای بدنه</h4>
-            <table class="table" id="reqTable">
-                <thead><tr><th>نام</th><th>نوع</th><th>ضروری؟</th><th></th></tr></thead>
-                <tbody></tbody>
-            </table>
-            <div class="actions">
-                <button class="btn btn-secondary" onclick="addBodyFieldRow()">+ افزودن فیلد</button>
-                <div class="spacer"></div>
-                <button class="btn" onclick="closeModal('reqModal')">بستن</button>
-                <button class="btn btn-primary" onclick="saveRequestFields()">ذخیره</button>
+    <!-- Modal Overlay -->
+    <div id="epModal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-head">
+                <h3>افزودن/ویرایش اندپوینت</h3>
+                <button type="button" class="icon-btn" onclick="closeAddEndpointModal()" aria-label="close">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" id="epProjectId">
+                <input type="hidden" id="epControllerName">
+                <input type="hidden" id="epIndex"> <!-- برای حالت ویرایش -->
+
+                <div class="grid-3">
+                    <div>
+                        <label>HTTP Method</label>
+                        <select id="epMethod">
+                            <option>GET</option><option>POST</option><option>PUT</option>
+                            <option>PATCH</option><option>DELETE</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label>Path نسبی</label>
+                        <input id="epPath" placeholder="customers/{id}"/>
+                    </div>
+                </div>
+
+                <div style="margin-top:8px">
+                    <label>نام متد (Endpoint name)</label>
+                    <input id="epName" placeholder="getById"/>
+                </div>
+            </div>
+
+
+
+
+            <div class="modal-actions" style="justify-content:flex-end;gap:8px;">
+                <button type="button" class="btn" onclick="closeAddEndpointModal()">انصراف</button>
+                <button type="button" class="btn btn-primary" onclick="saveEndpointFromModal()">ذخیره</button>
             </div>
         </div>
     </div>
 
-    <div class="modal" id="resPartModal">
-        <div class="dialog">
-            <h4>فیلدهای مدل خروجی</h4>
-            <input type="hidden" id="resPartIndex" value="-1"/>
-            <table class="table" id="resPartFieldsTable">
-                <thead><tr><th>نام</th><th>نوع</th><th>ضروری؟</th><th></th></tr></thead>
-                <tbody></tbody>
-            </table>
-            <div class="actions">
-                <button class="btn btn-secondary" onclick="addResPartFieldRow()">+ افزودن فیلد</button>
-                <div class="spacer"></div>
-                <button class="btn" onclick="closeModal('resPartModal')">بستن</button>
-                <button class="btn btn-primary" onclick="saveResPartFields()">ذخیره</button>
-            </div>
-        </div>
-    </div>
+    <style>
+        .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center}
+        .modal-content{width:min(720px,95vw);background:#0f1520;border:1px solid #273042;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+        .modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #273042}
+        .modal-body{padding:12px 16px}
+        .modal-actions{padding:12px 16px;border-top:1px solid #273042;display:flex}
+    </style>
 
-    <form id="epDeleteForm" method="post" style="display:none">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-    </form>
+    <script>
+        // باز کردن مودال افزودن اندپوینت (حالت ساخت جدید)
+        function openAddEndpointModal(projectId, controllerName){
+            const m = document.getElementById('epModal');
+            document.getElementById('epProjectId').value = projectId || '';
+            document.getElementById('epControllerName').value = controllerName || '';
+            document.getElementById('epIndex').value = '';
+
+            document.getElementById('epMethod').value = 'GET';
+            document.getElementById('epPath').value   = '';
+            document.getElementById('epName').value   = '';
+
+            m.style.display = 'flex';
+        }
+
+        // باز کردن مودال در حالت ویرایش (با ایندکس اندپوینت)
+        function openEditEndpointModal(projectId, controllerName, index, data){
+            const m = document.getElementById('epModal');
+            document.getElementById('epProjectId').value = projectId || '';
+            document.getElementById('epControllerName').value = controllerName || '';
+            document.getElementById('epIndex').value = (index!=null ? String(index) : '');
+
+            document.getElementById('epMethod').value = data?.httpMethod || 'GET';
+            document.getElementById('epPath').value   = data?.path || '';
+            document.getElementById('epName').value   = data?.name || '';
+
+            m.style.display = 'flex';
+        }
+
+        function closeAddEndpointModal(){
+            const m = document.getElementById('epModal');
+            if (m) m.style.display = 'none';
+        }
+
+        async function saveEndpointFromModal(){
+            const projectId = document.getElementById('epProjectId').value;
+            const ctrlName  = document.getElementById('epControllerName').value;
+            const epIndex   = document.getElementById('epIndex').value;
+
+            const payload = {
+                name:   document.getElementById('epName').value?.trim(),
+                path:   document.getElementById('epPath').value?.trim(),
+                method: document.getElementById('epMethod').value
+            };
+
+            if (!projectId || !ctrlName){
+                alert('شناسه پروژه یا نام کنترلر نامعتبر است.');
+                return;
+            }
+            if (!payload.name || !payload.path){
+                alert('نام متد و مسیر الزامی است.');
+                return;
+            }
+
+            try{
+                const token  = document.querySelector('meta[name="_csrf"]')?.content;
+                const header = document.querySelector('meta[name="_csrf_header"]')?.content;
+                const headers = {'Content-Type':'application/json'};
+                if (token && header) headers[header] = token;
+
+                const url = epIndex
+                    ? `/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints/${encodeURIComponent(epIndex)}`
+                    : `/wizard/${encodeURIComponent(projectId)}/controllers/${encodeURIComponent(ctrlName)}/endpoints`;
+
+                const method = epIndex ? 'PUT' : 'POST';
+                const r = await fetch(url, {method, headers, body: JSON.stringify(payload)});
+                const data = await r.json().catch(()=> ({}));
+                if (!r.ok || !data.ok){
+                    alert(data.message || 'ذخیره اندپوینت ناموفق بود.');
+                    return;
+                }
+                // رفرش صفحه تا لیست اندپوینت‌ها به‌روز شود
+                location.reload();
+            }catch(err){
+                alert('خطای ذخیره اندپوینت: ' + (err?.message || err));
+            }finally{
+                closeAddEndpointModal();
+            }
+        }
+
+        // بستن مودال با کلیک روی پس‌زمینه
+        document.addEventListener('click', (e)=>{
+            const m = document.getElementById('epModal');
+            if (m && e.target === m) closeAddEndpointModal();
+        });
+    </script>
 </div>

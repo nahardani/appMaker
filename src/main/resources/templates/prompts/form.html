@@ -59,22 +59,14 @@
             </div>
 
             <div>
-                <label>Java Min</label>
-                <select name="javaMin">
+                <label>Java Version</label>
+                <select name="javaVersion">
                     <option th:each="v : ${javaVersions}"
                             th:value="${v}" th:text="${v}"
-                            th:selected="${v == prompt.javaMin}">17</option>
+                            th:selected="${v == prompt.javaVersion}">17</option>
                 </select>
             </div>
 
-            <div>
-                <label>Java Max</label>
-                <select name="javaMax">
-                    <option th:each="v : ${javaVersions}"
-                            th:value="${v}" th:text="${v}"
-                            th:selected="${v == prompt.javaMax}">21</option>
-                </select>
-            </div>
 
             <div>
                 <label>وضعیت</label>
