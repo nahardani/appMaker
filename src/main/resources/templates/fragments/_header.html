@@ -7,11 +7,11 @@
 
             <!-- چپ: اکشن‌ها -->
             <div class="topbar__actions" style="display:flex;align-items:center;gap:8px">
+                <a href="/home" class="btn btn-secondary">🏠</a>
                 <form th:action="@{/logout}" method="post" class="inline">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                    <button type="submit" class="btn btn-secondary">خروج</button>
+                    <button title="خروج" type="submit" class="btn btn-secondary">❌</button>
                 </form>
-                <a href="/home" class="btn btn-secondary">صفحه اصلی</a>
             </div>
         </div>
     </header>

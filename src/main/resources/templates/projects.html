@@ -7,9 +7,11 @@
     <style>.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}</style>
 </head>
 <body>
-<div class="header">
-    <h1>پروژه‌ها</h1>
-    <a th:href="@{/home}">بازگشت</a>
+
+<div>
+    <th:block th:replace="fragments/_header :: topbar(
+        title='ایجاد / ویرایش پروژه',
+        project=${project})"></th:block>
 </div>
 
 <div class="container">

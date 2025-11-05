@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-    <title>گام ۲ — انتخاب پکیج‌ها</title>
+    <title>انتخاب پکیج‌ها</title>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
 </head>
 <body>
 <!-- هدر یکپارچه -->
-<th:block th:replace="fragments/_header :: topbar(title='گام ۲ — انتخاب پکیج‌ها', project=${project})"></th:block>
+<th:block th:replace="fragments/_header :: topbar(title='انتخاب پکیج‌ها', project=${project})"></th:block>
 
 <div class="container">
 
@@ -34,7 +34,7 @@
     </div>
 
     <!-- فرم انتخاب پکیج‌ها -->
-    <form th:action="@{'/wizard/' + ${project.id} + '/packages'}" method="post" class="card">
+    <form th:action="@{'/wizard/' + ${project.id} + '/packages'}" method="post" >
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
 
         <!-- پیش‌فرض‌های قفل‌شده -->
@@ -61,7 +61,7 @@
 
             <div class="grid-3" style="margin-top:8px">
                 <label class="chip-check" th:each="o : ${optPkgs}">
-                    <input type="checkbox"
+                    <input type="checkbox" style="width: auto"
                            name="packages"
                            th:value="${o.key}"
                            th:checked="${selected != null and selected.contains(o.key)}"/>
@@ -81,9 +81,13 @@
 <!--            <a th:href="@{/projects}" class="btn btn-secondary">بازگشت</a>-->
 <!--        </div>-->
 
-        <div class="actions" style="justify-content:flex-start; margin-top:12px">
-            <a th:href="@{/projects}" class="btn btn-secondary">بازگشت</a>
-            <button class="btn btn-primary" type="submit">ذخیره و ادامه → کنترلرها</button>
+
+
+        <div class="card" style="margin-top:12px;">
+            <div class="actions" style="justify-content:flex-end; gap:8px;">
+                <a th:href="@{/projects}" class="btn btn-secondary">بازگشت</a>
+                <button class="btn btn-primary" type="submit">ذخیره و ادامه → کنترلرها</button>
+            </div>
         </div>
 
     </form>

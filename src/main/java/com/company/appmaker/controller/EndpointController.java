@@ -15,6 +15,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import com.company.appmaker.ai.util.Utils;
 
@@ -113,105 +115,438 @@ public class EndpointController {
         return Map.of("ok", true);
     }
 
-    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/commit")
     @ResponseBody
+    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/commit")
     public Map<String, Object> commitEpAi(@PathVariable String id,
                                           @PathVariable String ctrlName,
                                           @PathVariable String epName,
                                           @RequestParam(value = "clearStash", defaultValue = "true") boolean clearStash) {
+
         var p = repo.findById(id).orElse(null);
         if (p == null) return Map.of("ok", false, "message", "Project not found");
 
         var ctrl = (p.getControllers() == null) ? null :
-                p.getControllers().stream().filter(c -> c != null && ctrlName.equals(c.getName())).findFirst().orElse(null);
+                p.getControllers().stream()
+                        .filter(c -> c != null && ctrlName.equals(c.getName()))
+                        .findFirst()
+                        .orElse(null);
         if (ctrl == null) return Map.of("ok", false, "message", "Controller not found");
 
         var ep = (ctrl.getEndpoints() == null) ? null :
-                ctrl.getEndpoints().stream().filter(e -> e != null && epName.equals(e.getName())).findFirst().orElse(null);
+                ctrl.getEndpoints().stream()
+                        .filter(e -> e != null && epName.equals(e.getName()))
+                        .findFirst()
+                        .orElse(null);
         if (ep == null) return Map.of("ok", false, "message", "Endpoint not found");
 
         var draft = aiDraftStore.get(id); // List<CodeFile>
-        if (draft == null || draft.isEmpty())
+        if (draft == null || draft.isEmpty()) {
             return Map.of("ok", false, "message", "هیچ فایل AI برای commit وجود ندارد.");
+        }
 
-        // خروجی‌های نمایشی برای UI (لیست فایل‌ها)
-        var previewFiles = new ArrayList<Project.GeneratedFile>();
-        // آرتیفکت‌ها برای مرج نهایی
-        if (ep.getAiArtifacts() == null) ep.setAiArtifacts(new ArrayList<>());
+        if (ep.getAiArtifacts() == null) {
+            ep.setAiArtifacts(new ArrayList<>());
+        }
 
         final String basePackage = resolveBasePackage(p);
         final String pkgPath     = basePackage.replace('.', '/');
-        final String feature     = stripControllerSuffix(normalizeControllerName(ctrlName)); // e.g. Accounting
-        final String svcSimple   = feature + "Service";
-        final String implSimple  = svcSimple + "Impl";
 
-        // مسیرهای استاندارد فایل‌ها برای نمایش
-        final String controllerPath   = "src/main/java/" + pkgPath + "/controller/" + normalizeControllerName(ctrlName) + ".java";
-        final String servicePath      = "src/main/java/" + pkgPath + "/service/"    + svcSimple  + ".java";
-        final String serviceImplPath  = "src/main/java/" + pkgPath + "/service/"    + implSimple + ".java";
+        // نام‌ها را استاندارد کنیم
+        String normalizedCtrl = Utils.ensureControllerName(ctrl.getName());
+        String feature        = Utils.stripControllerSuffix(normalizedCtrl);
+        String svcSimple      = Utils.ensureServiceName(feature);
+        String implSimple     = Utils.ensureServiceImplName(feature);
 
+        // مسیرهای استاندارد
+        final String controllerPath  = "src/main/java/" + pkgPath + "/controller/" + normalizedCtrl + ".java";
+        final String servicePath     = "src/main/java/" + pkgPath + "/service/"    + svcSimple  + ".java";
+        final String serviceImplPath = "src/main/java/" + pkgPath + "/service/"    + implSimple + ".java";
+
+        var previewFiles   = new ArrayList<Project.GeneratedFile>();
         int addedArtifacts = 0;
+
         for (var f : draft) {
             if (f == null || f.path() == null || f.content() == null) continue;
+
             final String path    = f.path();
             final String content = f.content();
 
-            // 1) اگر artifact است (فقط متد/ریجن)
+            // 0) اگر فایل تست است: به آرتیفکت اضافه نمی‌کنیم؛ فقط برای UI نشان می‌دهیم
+            if (Utils.isTestFile(path, content)) {
+                previewFiles.add(new Project.GeneratedFile(
+                        Utils.normalizeTestPath(path, pkgPath),
+                        content
+                ));
+                continue;
+            }
+
+            // 1) حالت artifact قدیمی
             if (path.startsWith("__ARTIFACT__/")) {
-                // type خام از روی path
-                String rawType = path.substring("__ARTIFACT__/".length()); // controller-method | service-method | service-impl-method | ...
-                // نرمال‌سازی نوع
-                String type = normalizeAiArtifactType(rawType);
+                final String rawType = path.substring("__ARTIFACT__/".length());
+                final String type    = Utils.normalizeAiArtifactType(rawType);
 
                 String hint = null;
                 String previewTargetPath = null;
+                String tagged = content;
 
                 switch (type) {
                     case "controller-method" -> {
                         hint = controllerPath;
                         previewTargetPath = controllerPath + "  (method: " + epName + ")";
+                        tagged = Utils.wrapControllerTagged(Utils.ensureOnlyMethod(content, epName));
                     }
                     case "service-method" -> {
                         hint = servicePath;
                         previewTargetPath = servicePath + "  (method: " + epName + ")";
+                        tagged = Utils.wrapServiceTagged(Utils.ensureOnlyMethod(content, epName));
                     }
                     case "service-impl-method" -> {
                         hint = serviceImplPath;
                         previewTargetPath = serviceImplPath + "  (method: " + epName + ")";
+                        tagged = Utils.wrapServiceTagged(Utils.ensureOnlyMethod(content, epName));
                     }
                     default -> {
-                        // ناشناخته‌ها را ذخیره نکنیم تا بعداً collectCommittedAiFiles قاطی نکند
                         continue;
                     }
                 }
+
+                // حذف آرتیفکت هم‌نام/هم‌نوع قبلی (upsert)
+                ep.getAiArtifacts().removeIf(a ->
+                        a != null
+                                && Objects.equals(a.getType(), type)
+                                && Objects.equals(a.getName(), epName)
+                );
 
                 var art = new AiArtifact();
                 art.setType(type);
                 art.setName(epName);
                 art.setPathHint(hint);
-                art.setContent(content);
+                art.setContent(tagged);
                 ep.getAiArtifacts().add(art);
                 addedArtifacts++;
 
-                // برای UI
                 if (previewTargetPath != null) {
-                    previewFiles.add(new Project.GeneratedFile(previewTargetPath, content));
+                    previewFiles.add(new Project.GeneratedFile(previewTargetPath, tagged));
                 }
                 continue;
             }
 
-            // 2) فایل‌های واقعی (DTO/Repo/…): همان‌طور که هست نمایش بده
+            // 2) فایل‌های کامل کنترلر/سرویس/امپلیم که AI تولید کرده
+            boolean controllerLike = Utils.isControllerFile(path, content, normalizedCtrl);
+            boolean serviceLike    = Utils.isServiceFile(path, content, svcSimple);
+            boolean implLike       = Utils.isServiceImplFile(path, content, implSimple);
+
+            if (controllerLike) {
+                // اگر کلاس بدون پسوند Controller باشد، نام کلاس را تصحیح می‌کنیم
+                String fixedContent = Utils.ensureControllerClassName(content, normalizedCtrl);
+                // سعی می‌کنیم فقط متد مربوط به epName را استخراج کنیم (بر اساس نام یا مپینگ)
+                String methodOnly   = Utils.extractControllerMethodByNameOrMapping(fixedContent, epName);
+                if (methodOnly == null || methodOnly.isBlank()) {
+                    // fallback: اگر پیدا نشد، برای اینکه فرایند نخوابد، کل فایل را تگ می‌کنیم
+                    methodOnly = fixedContent;
+                }
+                String tagged = Utils.wrapControllerTagged(methodOnly);
+
+                // upsert روی آرتیفکت کنترلر
+                ep.getAiArtifacts().removeIf(a ->
+                        a != null
+                                && Objects.equals(a.getType(), "controller-method")
+                                && Objects.equals(a.getName(), epName)
+                );
+
+                var art = new AiArtifact();
+                art.setType("controller-method");
+                art.setName(epName);
+                art.setPathHint(controllerPath);
+                art.setContent(tagged);
+                ep.getAiArtifacts().add(art);
+                addedArtifacts++;
+
+                // UI: نسخه‌ی کاملِ اصلاح‌شده را هم نمایش بدهیم
+                previewFiles.add(new Project.GeneratedFile(
+                        controllerPath + "  (full-file from AI, normalized)",
+                        fixedContent
+                ));
+                continue;
+            }
+
+            if (serviceLike) {
+                String methodOnly = Utils.extractServiceMethodByName(content, epName);
+                if (methodOnly == null || methodOnly.isBlank()) {
+                    methodOnly = content; // fallback امن
+                }
+                String tagged = Utils.wrapServiceTagged(methodOnly);
+
+                ep.getAiArtifacts().removeIf(a ->
+                        a != null
+                                && Objects.equals(a.getType(), "service-method")
+                                && Objects.equals(a.getName(), epName)
+                );
+
+                var art = new AiArtifact();
+                art.setType("service-method");
+                art.setName(epName);
+                art.setPathHint(servicePath);
+                art.setContent(tagged);
+                ep.getAiArtifacts().add(art);
+                addedArtifacts++;
+
+                previewFiles.add(new Project.GeneratedFile(
+                        servicePath + "  (full-file from AI)",
+                        content
+                ));
+                continue;
+            }
+
+            if (implLike) {
+                String methodOnly = Utils.extractServiceMethodByName(content, epName);
+                if (methodOnly == null || methodOnly.isBlank()) {
+                    methodOnly = content;
+                }
+                String tagged = Utils.wrapServiceTagged(methodOnly);
+
+                ep.getAiArtifacts().removeIf(a ->
+                        a != null
+                                && Objects.equals(a.getType(), "service-impl-method")
+                                && Objects.equals(a.getName(), epName)
+                );
+
+                var art = new AiArtifact();
+                art.setType("service-impl-method");
+                art.setName(epName);
+                art.setPathHint(serviceImplPath);
+                art.setContent(tagged);
+                ep.getAiArtifacts().add(art);
+                addedArtifacts++;
+
+                previewFiles.add(new Project.GeneratedFile(
+                        serviceImplPath + "  (full-file from AI)",
+                        content
+                ));
+                continue;
+            }
+
+            // 3) سایر فایل‌های جاوا: فقط برای UI نمایش بده
             if (path.endsWith(".java")) {
                 previewFiles.add(new Project.GeneratedFile(path, content));
             }
         }
 
-        // در UI از ep.aiFiles برای نمایش استفاده می‌کنیم (فایل‌های واقعی + پیش‌نمایش متدها)
         ep.setAiFiles(previewFiles);
         repo.save(p);
 
-        if (clearStash) aiDraftStore.clear(id);
-        return Map.of("ok", true, "count", addedArtifacts, "files", previewFiles.size());
+        if (clearStash) {
+            aiDraftStore.clear(id);
+        }
+
+        return Map.of(
+                "ok", true,
+                "count", addedArtifacts,
+                "files", previewFiles.size()
+        );
+    }
+
+
+/* ============================
+   کمک‌متدها: تگ‌گذاری و استخراج
+   ============================ */
+
+    private String wrapControllerTagged(String body) {
+        // Utils.controllerStart()/controllerEnd() را استفاده کن
+        return Utils.controllerStart() + "\n" + safeTrim(body) + "\n" + Utils.controllerEnd();
+    }
+
+    private String wrapServiceTagged(String body) {
+        return Utils.serviceRegionStart() + "\n" + safeTrim(body) + "\n" + Utils.serviceRegionEnd();
+    }
+
+    private String safeTrim(String s) {
+        return (s == null) ? "" : s.trim();
+    }
+
+    /**
+     * تلاش برای استخراج بدنهٔ متد کنترلر بر اساس نام مشتق‌شده از epName
+     * یا مسیر مپینگ که epName در آن آمده است (heuristic).
+     */
+    private String extractControllerMethodByNameOrMapping(String src, String epName) {
+//        String guessedName = epName; // همان روالی که برای نام‌گذاری متدها داری
+        String m = extractMethodByName(src, epName);
+        if (m != null && !m.isBlank()) return m;
+
+        // اگر نام پیدا نشد، با annotation mappingها امتحان کن
+        // به دنبال @GetMapping("/...epName...")، @PostMapping، @PutMapping، @DeleteMapping
+        String byMapping = extractMethodByMappingContains(src, epName);
+        return safeTrim(byMapping);
+    }
+
+    private String extractServiceMethodByName(String src, String epName) {
+        String guessedName = toUpperCamel(epName);
+        return safeTrim(extractMethodByName(src, guessedName));
+    }
+
+    /**
+     * جست‌وجوی متد با اسم مشخص (public .* guessedName(...)
+     * با یک پارسر سادهٔ براکت‌محور.
+     */
+    private String extractMethodByName(String src, String methodName) {
+        if (src == null || methodName == null || methodName.isBlank()) return null;
+        String regex = "(public|protected|private)\\s+[\\w\\<\\>\\[\\]]+\\s+" + Pattern.quote(methodName) + "\\s*\\(";
+        Matcher m = Pattern.compile(regex).matcher(src);
+        if (!m.find()) return null;
+        int start = m.start();
+        // از اولین '{' بعد از امضا، تا براکت بسته متناظر
+        int braceOpen = src.indexOf('{', m.end());
+        if (braceOpen < 0) return null;
+        int end = findMatchingBrace(src, braceOpen);
+        if (end < 0) return null;
+        return src.substring(start, end + 1);
+    }
+
+    /**
+     * جست‌وجوی متدِ دارای انوتیشن مپینگ که مسیرش حاوی epName است.
+     */
+    private String extractMethodByMappingContains(String src, String epName) {
+        if (src == null || epName == null || epName.isBlank()) return null;
+        Pattern p = Pattern.compile("@(GetMapping|PostMapping|PutMapping|DeleteMapping)\\s*\\(\\s*\"([^\"]*)\"\\s*\\)");
+        Matcher m = p.matcher(src);
+        while (m.find()) {
+            String path = m.group(2);
+            if (path != null && path.toLowerCase().contains(epName.toLowerCase())) {
+                // امضای متد بعد از این annotation می‌آید
+                int annEnd = m.end();
+                // به دنبال اولین '{' بعد از امضا
+                int sigStart = src.indexOf("(", annEnd);
+                if (sigStart < 0) continue;
+                int braceOpen = src.indexOf('{', sigStart);
+                if (braceOpen < 0) continue;
+                int end = findMatchingBrace(src, braceOpen);
+                if (end < 0) continue;
+
+                // برای بازگشت تمیزتر، از آغاز خطِ امضای متد برگردان
+                int methodDeclStart = backToLineStart(src, annEnd);
+                return src.substring(methodDeclStart, end + 1);
+            }
+        }
+        return null;
+    }
+
+    private int backToLineStart(String s, int from) {
+        int i = from;
+        while (i > 0 && s.charAt(i - 1) != '\n' && s.charAt(i - 1) != '\r') i--;
+        return i;
+    }
+
+    /** پیدا کردن ‘}’ متناظر با ‘{’ با احتساب تو در تو */
+    private int findMatchingBrace(String s, int openIdx) {
+        int depth = 0;
+        for (int i = openIdx; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0) return i;
+            }
+        }
+        return -1;
+    }
+
+    /** اگر محتوا فقط یک متد است همان را برگردان؛ اگر کلاس کامل است، سعی کن متد این اندپوینت را بیرون بکشی */
+    private String ensureOnlyMethod(String content, String epName) {
+        if (content == null) return "";
+        // اگر ظاهراً یک متد است (با '{' و بدون class ... { )
+        if (!content.contains(" class ") && content.contains("(") && content.contains("{") && content.contains("}")) {
+            return content.trim();
+        }
+        // در غیر این صورت سعی کن متد مناسب را بیرون بکشی
+        String m = extractControllerMethodByNameOrMapping(content, epName);
+        return (m == null || m.isBlank()) ? content.trim() : m.trim();
+    }
+
+
+
+    private boolean isControllerFile(String path, String content, String normalizedCtrl) {
+        if (path == null) path = "";
+        // مسیر درست
+        if (path.contains("/controller/")) {
+            // اگر هم‌نام کنترلر نرمال‌شده باشد → قطعی
+            if (path.endsWith("/" + normalizedCtrl + ".java")) {
+                return true;
+            }
+            // اگر AI مثلاً Customer.java ساخته ولی در controller است
+            if (content != null && content.contains("class " + stripControllerSuffix(normalizedCtrl))) {
+                return true;
+            }
+        }
+        // محتوایی
+        if (content != null) {
+            if (content.contains("@RestController") || content.contains("@Controller")) {
+                if (content.contains("class " + normalizedCtrl)) {
+                    return true;
+                }
+                // کنترلر بدون پسوند
+                if (content.contains("class " + stripControllerSuffix(normalizedCtrl))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isServiceFile(String path, String content, String svcSimple) {
+        if (path == null) path = "";
+        if (path.contains("/service/") && path.endsWith("/" + svcSimple + ".java")) {
+            return true;
+        }
+        if (content != null && content.contains("interface " + svcSimple)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isServiceImplFile(String path, String content, String implSimple) {
+        if (path == null) path = "";
+        if (path.contains("/service/") && path.endsWith("/" + implSimple + ".java")) {
+            return true;
+        }
+        if (content != null && content.contains("class " + implSimple)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * تشخیص فایل تست تا اشتباهی توی controller مرج نشه
+     */
+    private boolean isTestFile(String path, String content) {
+        String p = (path == null) ? "" : path;
+        String c = (content == null) ? "" : content;
+
+        // 1) مسیر تست
+        if (p.contains("/src/test/java/")) return true;
+
+        // 2) اسم‌های رایج تست
+        if (p.endsWith("Test.java") || p.endsWith("Tests.java") || p.endsWith("IT.java")) return true;
+
+        // 3) محتوا
+        if (c.contains("@SpringBootTest") || c.contains("org.junit.jupiter.api.Test")) return true;
+        if (c.contains("MockMvc") || c.contains("TestRestTemplate")) return true;
+
+        return false;
+    }
+
+    /**
+     * اگر AI تست را در مسیر main ساخت، ما لااقل راهنمای UI را به test ببریم
+     */
+    private String normalizeTestPath(String originalPath, String pkgPath) {
+        if (originalPath == null || originalPath.isBlank()) {
+            return "src/test/java/" + pkgPath + "/SomeGeneratedTest.java";
+        }
+        // اگر زیر src/main بود، به src/test منتقلش کن
+        if (originalPath.startsWith("src/main/java/")) {
+            return originalPath.replace("src/main/java/", "src/test/java/");
+        }
+        // وگرنه همون
+        return originalPath;
     }
 
     /**
@@ -247,6 +582,21 @@ public class EndpointController {
         return t; // چیزهای دیگر را برنگردانیم بهتر است بالا فیلترشان کنیم
     }
 
+
+    private String ensureControllerClassName(String content, String normalizedCtrl) {
+        if (content == null || content.isBlank()) return content;
+        // اگر همین الان همون اسم رو دارد، دست نزن
+        if (content.contains("class " + normalizedCtrl)) {
+            return content;
+        }
+        // اگر کلاس بدون Controller است، جایگزین کن
+        String noSuffix = stripControllerSuffix(normalizedCtrl);
+        if (content.contains("class " + noSuffix)) {
+            return content.replace("class " + noSuffix, "class " + normalizedCtrl);
+        }
+        // اگر هیچ‌کدام نبود، همون رو برگردون
+        return content;
+    }
 
 
 

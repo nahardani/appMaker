@@ -59,7 +59,7 @@ public final class ControllerSkeletonFactory {
                 """.formatted(pkg, safeBasePath(basePath), ctrl, svc);
     }
 
-    private static String normalizeControllerName(String name) {
+    public static String normalizeControllerName(String name) {
         if (name == null || name.isBlank()) return "GeneratedController";
         String n = name.trim();
         return n.endsWith("Controller") ? n : (n + "Controller");
