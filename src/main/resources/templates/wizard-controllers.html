@@ -95,6 +95,7 @@
 <th:block th:replace="~{fragments/_endpoint-modal :: endpointModal}"></th:block>
 
 
+
 <!-- اسکریپت‌ها -->
 <script th:src="@{/js/wizard-controllers.js?v=14}"></script>
 <script>
@@ -132,6 +133,111 @@
             location.href = url;
         });
     })();
+
+    // ✅ سراسری: نمایش مودال و ارسال مجدد Generate با پاسخ‌ها
+    window.showPreflightQuestions = function(questions, prevPayload){
+        const $modal = document.getElementById('preflight-modal');
+        const $form  = document.getElementById('preflight-form');
+        const $list  = document.getElementById('preflight-questions');
+        const $close = document.getElementById('preflight-close');
+        const $cancel= document.getElementById('preflight-cancel');
+
+        // پاک‌سازی قبلی
+        $list.innerHTML = '';
+
+        // رندر هر سؤال
+        (questions || []).forEach(q => {
+            // q: { key, label, type: 'text'|'select', required, placeholder, options? }
+            const wrap = document.createElement('div');
+            wrap.style.marginBottom = '12px';
+
+            const label = document.createElement('label');
+            label.style.display = 'block';
+            label.style.marginBottom = '6px';
+            label.style.fontSize = '13px';
+            label.style.color = '#94a3b8';
+            label.textContent = q.label || q.key;
+            label.setAttribute('for', `q-${q.key}`);
+
+            let input;
+            if (q.type === 'select' && Array.isArray(q.options)) {
+                input = document.createElement('select');
+                input.style.width = '100%';
+                input.style.padding = '8px';
+                input.style.borderRadius = '8px';
+                input.style.border = '1px solid #334155';
+                input.style.background = '#0b1220';
+                input.style.color = '#e2e8f0';
+                input.id = `q-${q.key}`;
+                q.options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt; o.textContent = opt;
+                    input.appendChild(o);
+                });
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.style.width = '100%';
+                input.style.padding = '8px';
+                input.style.borderRadius = '8px';
+                input.style.border = '1px solid #334155';
+                input.style.background = '#0b1220';
+                input.style.color = '#e2e8f0';
+                input.id = `q-${q.key}`;
+                if (q.placeholder) input.placeholder = q.placeholder;
+            }
+            if (q.required) input.required = true;
+
+            // مقدار قبلی اگر وجود دارد
+            if (prevPayload && prevPayload[q.key] != null) input.value = prevPayload[q.key];
+
+            wrap.appendChild(label);
+            wrap.appendChild(input);
+            $list.appendChild(wrap);
+        });
+
+        // نمایش
+        $modal.style.display = 'block';
+
+        const closeModal = () => { $modal.style.display = 'none'; };
+        $close.onclick = closeModal;
+        $cancel.onclick = closeModal;
+
+        // Submit: جمع‌آوری و ارسال مجدد
+        $form.onsubmit = async (e) => {
+            e.preventDefault();
+
+            const answers = {};
+            (questions || []).forEach(q => {
+                const el = document.getElementById(`q-${q.key}`);
+                answers[q.key] = el ? el.value : null;
+            });
+
+            const merged = { ...(prevPayload || {}), ...(answers || {}) };
+            // معمولاً وقتی پرسش‌ها مطرح شده یعنی needsExternal=true
+            if (questions.some(q => String(q.key).toLowerCase().startsWith('external'))) {
+                merged.needsExternal = true;
+            }
+
+            closeModal();
+
+            // صدا زدن تابع سراسری که در fragment تعریف شده است
+            if (typeof window.aiGenerate === 'function') {
+                // یک پیام کوچک وضعیت
+                const st = document.getElementById('aiStatus');
+                if (st){ st.style.display='block'; st.textContent='تکمیل ورودی‌ها… تولید مجدد کد توسط AI…'; }
+                // دکمه تولید disable
+                const btnGen = document.getElementById('btnGen'); if (btnGen) btnGen.disabled = true;
+
+                await window.aiGenerate(merged);
+
+                if (btnGen) btnGen.disabled = false;
+            } else {
+                alert('Generate function not found!');
+            }
+        };
+    };
 </script>
 </body>
 </html>
+

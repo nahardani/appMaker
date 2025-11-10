@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8"/>
+    <title>AI Generate</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <style>
+        body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Noto Sans",Tahoma;line-height:1.5;margin:24px}
+        .row{display:flex;gap:12px;flex-wrap:wrap}
+        .col{flex:1 1 260px;min-width:260px}
+        .card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+        label{display:block;font-size:13px;color:#374151;margin-bottom:6px}
+        input,select,textarea{width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:14px}
+        textarea{min-height:90px}
+        .hint{font-size:12px;color:#6b7280}
+        .muted{color:#6b7280}
+        .btn{padding:10px 14px;border-radius:10px;border:1px solid transparent;cursor:pointer}
+        .btn-primary{background:#111827;color:#fff}
+        .btn-secondary{background:#f3f4f6}
+        .grid{display:grid;gap:12px}
+        .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .hidden{display:none}
+        /* Modal */
+        .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px}
+        .modal{background:#fff;border-radius:14px;max-width:720px;width:100%;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+        .modal h3{margin:0 0 10px 0}
+        .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+        .error{color:#b91c1c;font-size:13px;margin-top:6px}
+        .ok{color:#065f46;font-size:13px;margin-top:6px}
+        .pill{font-size:12px;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;background:#f9fafb}
+    </style>
+</head>
+<body>
+
+<h1 style="margin-top:0">AI Generate</h1>
+
+<!-- FORM -->
+<div class="card">
+    <div class="row">
+        <div class="col">
+            <label>Base Package</label>
+            <input id="basePackage" placeholder="مثلاً: com.behsazan.customer"/>
+        </div>
+        <div class="col">
+            <label>Base Path</label>
+            <input id="basePath" placeholder="/api/customer"/>
+        </div>
+        <div class="col">
+            <label>Project ID <span class="muted">(اختیاری)</span></label>
+            <input id="projectId" placeholder="uuid یا شناسه پروژه"/>
+        </div>
+        <div class="col">
+            <label>Java Version</label>
+            <select id="javaVersion">
+                <option value="21">21</option>
+                <option value="17">17</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <label>Controller Name</label>
+            <input id="controllerName" placeholder="Facility یا AccountController" oninput="updatePreview()"/>
+            <div class="hint">خروجی: <span class="pill" id="controllerPreview">—</span></div>
+        </div>
+        <div class="col">
+            <label>Endpoint Name</label>
+            <input id="endpointName" placeholder="getFacilityInfo یا editCustomerInfo" oninput="updatePreview()"/>
+            <div class="hint">متد سرویس: <span class="pill" id="serviceMethodPreview">—</span></div>
+        </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:10px">
+        <div>
+            <label>Saved Prompt (اختیاری)</label>
+            <input id="promptId" placeholder="شناسهٔ تمپلیت ذخیره‌شده (اختیاری)"/>
+        </div>
+        <div>
+            <label>Model Provider / Model <span class="muted">(اختیاری)</span></label>
+            <div class="row">
+                <div class="col">
+                    <input id="provider" placeholder="provider id"/>
+                </div>
+                <div class="col">
+                    <input id="model" placeholder="model name"/>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top:10px">
+        <label>User Prompt (اختیاری)</label>
+        <textarea id="prompt" placeholder="شرح نیاز… (اگر سرویس خارجی/DB می‌خواهی همینجا هم بنویس)"></textarea>
+    </div>
+</div>
+
+<!-- ADVANCED -->
+<div class="card">
+    <h3 style="margin-top:0">Advanced (اختیاری)</h3>
+
+    <!-- External Service -->
+    <div class="grid grid-2">
+        <div>
+            <label><input type="checkbox" id="needsExternal" onchange="toggleGroup('extGroup', this.checked)"/> نیاز به سرویس خارجی</label>
+            <div id="extGroup" class="grid grid-2 hidden" style="margin-top:10px">
+                <div>
+                    <label>Base URL</label>
+                    <input id="externalBaseUrl" placeholder="https://ext.example.com"/>
+                </div>
+                <div>
+                    <label>HTTP Method</label>
+                    <select id="externalHttpMethod">
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>PATCH</option>
+                        <option>DELETE</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Path Template</label>
+                    <input id="externalPathTemplate" placeholder="/facilities/{facilityId}"/>
+                </div>
+                <div>
+                    <label>Auth Type</label>
+                    <select id="externalAuthType" onchange="toggleAuthFields(this.value)">
+                        <option>NONE</option>
+                        <option>BASIC</option>
+                        <option>BEARER</option>
+                        <option>API_KEY</option>
+                    </select>
+                </div>
+                <div id="authBasic" class="hidden">
+                    <label>Username</label>
+                    <input id="externalUsername" placeholder="user"/>
+                    <label style="margin-top:6px">Password</label>
+                    <input id="externalPassword" placeholder="pass" type="password"/>
+                </div>
+                <div id="authBearer" class="hidden">
+                    <label>Bearer Token</label>
+                    <input id="externalBearerToken" placeholder="eyJhbGciOi..."/>
+                </div>
+                <div id="authApiKey" class="hidden">
+                    <label>API Key Header</label>
+                    <input id="apiKeyHeaderName" placeholder="X-API-Key"/>
+                    <label style="margin-top:6px">API Key Value</label>
+                    <input id="apiKeyValue" placeholder="secret-key-value"/>
+                </div>
+                <div>
+                    <label>Timeout (ms)</label>
+                    <input id="timeoutMs" type="number" placeholder="5000"/>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <label>Retry Max Attempts</label>
+                        <input id="retryMaxAttempts" type="number" placeholder="3"/>
+                    </div>
+                    <div>
+                        <label>Retry Backoff (ms)</label>
+                        <input id="retryBackoffMs" type="number" placeholder="250"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database -->
+        <div>
+            <label><input type="checkbox" id="needsDb" onchange="toggleGroup('dbGroup', this.checked)"/> نیاز به دیتابیس</label>
+            <div id="dbGroup" class="grid grid-2 hidden" style="margin-top:10px">
+                <div>
+                    <label>DB Type</label>
+                    <select id="dbType">
+                        <option>JPA</option>
+                        <option>Mongo</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Stored Procedure Name <span class="muted">(اختیاری)</span></label>
+                    <input id="spName" placeholder="sp_get_facility_info"/>
+                </div>
+                <div class="col" style="grid-column:1/-1">
+                    <label>SP Params (JSON) <span class="muted">(اختیاری)</span></label>
+                    <textarea id="spParams" placeholder='{"customerId":"${customerId}","facilityId":"${facilityId}"}'></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ACTIONS -->
+<div class="row">
+    <button class="btn btn-primary" onclick="onGenerate()">Generate</button>
+    <span id="status" class="muted"></span>
+</div>
+
+<!-- RESULT -->
+<div id="result" class="card hidden">
+    <h3 style="margin-top:0">Result</h3>
+    <pre id="resultPre" style="white-space:pre-wrap;overflow:auto;max-height:60vh;background:#f9fafb;border-radius:10px;padding:10px"></pre>
+</div>
+
+<!-- MODAL (422 Questions) -->
+<div id="qBackdrop" class="modal-backdrop">
+    <div class="modal">
+        <h3>اطلاعات تکمیلی لازم</h3>
+        <div id="qContainer" class="grid" style="gap:10px"></div>
+        <div id="qError" class="error hidden"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="closeQuestions()">انصراف</button>
+            <button class="btn btn-primary" onclick="submitQuestions()">ثبت و ادامه</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // مسیر نهایی POST متد generate — اگر کلاس شما @RequestMapping("/ai") دارد، این را بگذار "/ai/generate"
+    const GENERATE_URL = '/ai/generate';
+
+    const $ = (id) => document.getElementById(id);
+    const camel = (s) => { if(!s) return ""; const p = s.replace(/[^A-Za-z0-9]+/g,' ').trim().split(/\s+/).map(x=>x[0].toUpperCase()+x.slice(1)); const uc = p.join(''); return uc ? uc[0].toLowerCase()+uc.slice(1) : ""; };
+    const upperCamel = (s) => { if(!s) return ""; return s.replace(/[^A-Za-z0-9]+/g,' ').trim().split(/\s+/).map(x=>x[0].toUpperCase()+x.slice(1)).join(''); };
+    const ensureSuffix = (name,sfx) => !name ? sfx : (name.endsWith(sfx) ? name : name + sfx);
+
+    function updatePreview(){
+        const ctrl = $('controllerName').value.trim();
+        const ep   = $('endpointName').value.trim();
+        const ctrlSimple = ensureSuffix(upperCamel(ctrl.replace(/Controller$/i,'')), 'Controller');
+        $('controllerPreview').textContent = ctrlSimple || '—';
+        $('serviceMethodPreview').textContent = camel(ep) || '—';
+    }
+    updatePreview();
+
+    function toggleGroup(id, show){ $(id).classList.toggle('hidden', !show); }
+    function toggleAuthFields(v){
+        $('authBasic').classList.add('hidden');
+        $('authBearer').classList.add('hidden');
+        $('authApiKey').classList.add('hidden');
+        if(v==='BASIC') $('authBasic').classList.remove('hidden');
+        if(v==='BEARER') $('authBearer').classList.remove('hidden');
+        if(v==='API_KEY') $('authApiKey').classList.remove('hidden');
+    }
+
+    // ---------- collect request ----------
+    function collectRequest(extra={}){
+        const ctrlRaw = $('controllerName').value.trim();
+        const ctrl    = ensureSuffix(upperCamel(ctrlRaw.replace(/Controller$/i,'')), 'Controller');
+        const ep      = $('endpointName').value.trim();
+
+        const payload = {
+            basePackage : $('basePackage').value.trim() || null,
+            basePath    : $('basePath').value.trim() || null,
+            projectId   : $('projectId').value.trim() || null,
+            javaVersion : parseInt($('javaVersion').value,10) || 21,
+            controllerName : ctrl,
+            endpointName   : ep,
+            promptId    : $('promptId').value.trim() || null,
+            provider    : $('provider').value.trim() || null,
+            model       : $('model').value.trim() || null,
+            prompt      : $('prompt').value.trim() || null
+        };
+
+        if ($('needsExternal').checked){
+            payload.needsExternal       = true;
+            payload.externalBaseUrl     = $('externalBaseUrl').value.trim() || null;
+            payload.externalHttpMethod  = $('externalHttpMethod').value;
+            payload.externalPathTemplate= $('externalPathTemplate').value.trim() || null;
+            payload.externalAuthType    = $('externalAuthType').value;
+
+            if (payload.externalAuthType === 'BASIC'){
+                payload.externalUsername = $('externalUsername').value;
+                payload.externalPassword = $('externalPassword').value;
+            } else if (payload.externalAuthType === 'BEARER'){
+                payload.externalBearerToken = $('externalBearerToken').value;
+            } else if (payload.externalAuthType === 'API_KEY'){
+                payload.apiKeyHeaderName = $('apiKeyHeaderName').value;
+                payload.apiKeyValue      = $('apiKeyValue').value;
+            }
+
+            payload.timeoutMs        = parseInt($('timeoutMs').value || '0',10) || null;
+            payload.retryMaxAttempts = parseInt($('retryMaxAttempts').value || '0',10) || null;
+            payload.retryBackoffMs   = parseInt($('retryBackoffMs').value || '0',10) || null;
+        }
+
+        if ($('needsDb').checked){
+            payload.needsDb = true;
+            payload.dbType  = $('dbType').value;
+            payload.spName  = $('spName').value.trim() || null;
+            const spParams  = $('spParams').value.trim();
+            if (spParams){
+                try{ payload.spParams = JSON.parse(spParams); }catch(e){ payload.spParams = spParams; }
+            }
+        }
+
+        // merge extra answers from questions modal
+        return Object.assign(payload, extra || {});
+    }
+
+    // ---------- main action ----------
+    async function onGenerate(extraAnswers){
+        $('status').textContent = 'در حال تولید...';
+        $('result').classList.add('hidden');
+
+        const body = collectRequest(extraAnswers);
+
+        try{
+            const res = await fetch(GENERATE_URL, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(body)
+            });
+
+            const text = await res.text();
+            let data;
+            try{ data = JSON.parse(text); } catch{ data = { raw:text }; }
+
+            if (res.status === 200){
+                $('status').textContent = 'تمام شد.';
+                $('result').classList.remove('hidden');
+                $('resultPre').textContent = JSON.stringify(data, null, 2);
+                return;
+            }
+
+            if (res.status === 422 && data && Array.isArray(data.questions)){
+                openQuestions(data.questions);
+                $('status').textContent = 'اطلاعات تکمیلی لازم است.';
+                return;
+            }
+
+            $('status').innerHTML = '<span class="error">خطا: '+ (data?.error || res.status) +'</span>';
+            $('result').classList.remove('hidden');
+            $('resultPre').textContent = JSON.stringify(data, null, 2);
+
+        }catch(err){
+            $('status').innerHTML = '<span class="error">Network/JS error: '+ err.message +'</span>';
+        }
+    }
+
+    let lastQuestions = [];
+    function openQuestions(questions){
+        lastQuestions = questions || [];
+        const box = $('qContainer');
+        box.innerHTML = '';
+        for (const q of lastQuestions){
+            const id = 'q_' + q.key;
+            const wrap = document.createElement('div');
+            const label = document.createElement('label');
+            label.textContent = q.label || q.key;
+            wrap.appendChild(label);
+
+            let input;
+            switch((q.type || 'text').toLowerCase()){
+                case 'select':
+                    input = document.createElement('select');
+                    (q.options || []).forEach(opt=>{
+                        const o = document.createElement('option'); o.value = opt; o.textContent = opt; input.appendChild(o);
+                    });
+                    break;
+                case 'number':
+                    input = document.createElement('input'); input.type='number'; break;
+                case 'boolean':
+                    input = document.createElement('select');
+                    [{v:true,t:'true'},{v:false,t:'false'}].forEach(o=>{
+                        const el = document.createElement('option'); el.value = String(o.v); el.textContent = o.t; input.appendChild(el);
+                    });
+                    break;
+                case 'textarea':
+                    input = document.createElement('textarea'); break;
+                default:
+                    input = document.createElement('input'); input.type='text';
+            }
+            input.id = id;
+            if (q.placeholder) input.placeholder = q.placeholder;
+            wrap.appendChild(input);
+            if (q.required) {
+                const req = document.createElement('div');
+                req.className = 'hint';
+                req.textContent = 'الزامی';
+                wrap.appendChild(req);
+            }
+            box.appendChild(wrap);
+        }
+        $('qError').classList.add('hidden');
+        $('qBackdrop').style.display = 'flex';
+    }
+    function closeQuestions(){ $('qBackdrop').style.display = 'none'; }
+    function submitQuestions(){
+        const answers = {};
+        for (const q of lastQuestions){
+            const el = $('q_' + q.key);
+            if (!el) continue;
+            let val = el.value;
+            if ((q.type||'').toLowerCase()==='number') val = Number(val);
+            if ((q.type||'').toLowerCase()==='boolean') val = (String(val) === 'true');
+            if (q.required && (val===null || val===undefined || String(val).trim()==='')){
+                $('qError').textContent = 'فیلد «'+(q.label||q.key)+'» الزامی است.';
+                $('qError').classList.remove('hidden');
+                return;
+            }
+            answers[q.key] = val;
+        }
+        closeQuestions();
+        onGenerate(answers);
+    }
+</script>
+</body>
+</html>

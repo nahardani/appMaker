@@ -16,7 +16,7 @@
         </div>
 
         <form id="aiForm" onsubmit="return doGenerate(event)">
-            <!-- کانتکست ثابت از سمت سرور -->
+            <!-- hidden context -->
             <input type="hidden" id="projectId"  th:value="${project.id}"/>
             <input type="hidden" id="basePackage" th:value="${project.ms != null ? project.ms.basePackage : ''}"/>
             <input type="hidden" id="basePath"    th:value="${project.ms != null ? project.ms.basePath    : ''}"/>
@@ -33,7 +33,6 @@
                         <option value="huggingface">Hugging Face</option>
                     </select>
                 </div>
-
                 <div>
                     <label>Model</label>
                     <select id="model"></select>
@@ -41,7 +40,15 @@
             </div>
 
             <div style="margin-top:8px">
-                <label>Prompt (دلخواه)</label>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="margin:0;">Prompt (دلخواه)</label>
+                    <!-- 🔮 عصای جادویی: اصلاح/تکمیل پرامپت به صورت اختیاری -->
+                    <button type="button" class="btn" title="اصلاح/تکمیل پرامپت"
+                            onclick="refinePrompt()" style="padding:4px 8px; display:flex; gap:6px; align-items:center;">
+                        <span>اصلاح پرامپت</span>
+                        <span style="font-size:18px;">🪄</span>
+                    </button>
+                </div>
                 <textarea id="prompt" rows="6" placeholder="اگر می‌خواهید متن پرامپت را دستی بدهید اینجا بنویسید..."></textarea>
             </div>
 
@@ -61,11 +68,28 @@
         <div id="files"></div>
     </div>
 
+    <!-- 🧩 Modal ساده برای Preflight -->
+    <div id="preflight-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000;">
+        <div style="max-width:520px; margin:60px auto; background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:12px; padding:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+                <h4 style="margin:0;">تکمیل اطلاعات لازم قبل از تولید (Preflight)</h4>
+                <button id="preflight-close" class="btn" type="button">✖</button>
+            </div>
+            <form id="preflight-form" style="margin-top:12px;">
+                <div id="preflight-questions"></div>
+                <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+                    <button id="preflight-cancel" type="button" class="btn">انصراف</button>
+                    <button type="submit" class="btn btn-primary">ثبت پاسخ‌ها</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script th:inline="javascript">
         // --- state
         window.generated ??= null;
+        let __aiBusy = false;
 
-        // --- models by provider
         async function fillModelsForProvider(){
             const prov  = document.getElementById('provider').value;
             const model = document.getElementById('model');
@@ -84,6 +108,7 @@
         fillModelsForProvider();
 
         function setBusy(isBusy, msg=''){
+            __aiBusy = !!isBusy;
             const btnGen = document.getElementById('btnGen');
             const status = document.getElementById('aiStatus');
             if (btnGen) btnGen.disabled = isBusy;
@@ -110,11 +135,10 @@
             });
         }
 
-        // کمک‌متد: شناسه‌ها را مطمئن استخراج کن
         function getIdsForAI() {
             const pid  = document.getElementById('projectId')?.value || '';
-            const ctrl = document.getElementById('ctrlName')?.value   // hidden
-                || document.querySelector('.tag[data-ctrl-name]')?.getAttribute('data-ctrl-name') // اگر گذاشتی
+            const ctrl = document.getElementById('ctrlName')?.value
+                || document.querySelector('.tag[data-ctrl-name]')?.getAttribute('data-ctrl-name')
                 || '';
             const ep   = document.getElementById('epName')?.value
                 || document.getElementById('endpointSelect')?.value
@@ -123,44 +147,149 @@
             return { pid, ctrl, ep };
         }
 
-        async function doGenerate(e){
-            if (e) e.preventDefault();
-            if (document.getElementById('btnGen')?.disabled) return false;
+        // =========================
+        //    REFINE PROMPT (اختیاری)
+        // =========================
+        function openPreflightModal(questions){
+            const modal = document.getElementById('preflight-modal');
+            const host  = document.getElementById('preflight-questions');
+            const btnX  = document.getElementById('preflight-close');
+            const btnC  = document.getElementById('preflight-cancel');
+            const form  = document.getElementById('preflight-form');
 
+            host.innerHTML = '';
+            (questions||[]).forEach(q=>{
+                const wrap = document.createElement('div');
+                wrap.style.marginBottom = '10px';
+
+                const lab = document.createElement('label');
+                lab.textContent = q.label || q.key;
+                lab.style.display = 'block';
+                lab.style.marginBottom = '4px';
+                wrap.appendChild(lab);
+
+                let input;
+                if (q.type === 'select' && Array.isArray(q.options)) {
+                    input = document.createElement('select');
+                    q.options.forEach(opt=>{
+                        const o = document.createElement('option');
+                        o.value = opt; o.textContent = opt;
+                        input.appendChild(o);
+                    });
+                } else {
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    if (q.placeholder) input.placeholder = q.placeholder;
+                }
+                input.name = q.key;
+                input.required = !!q.required;
+                input.style.width = '100%';
+                input.style.padding = '8px';
+                input.style.borderRadius = '8px';
+                input.style.border = '1px solid #334155';
+                input.style.background = '#0b1220';
+                input.style.color = '#e2e8f0';
+                wrap.appendChild(input);
+
+                host.appendChild(wrap);
+            });
+
+            const hide = ()=>{ modal.style.display='none'; };
+            btnX.onclick = hide;
+            btnC.onclick = hide;
+
+            form.onsubmit = async (ev)=>{
+                ev.preventDefault();
+                const fd = new FormData(form);
+                const answers = {};
+                (questions||[]).forEach(q=> answers[q.key] = fd.get(q.key) || null);
+                hide();
+
+                // یک بار دیگر preflight را با پاسخ‌ها صدا بزن
+                await refinePrompt(answers);
+            };
+
+            modal.style.display = 'block';
+        }
+
+        async function refinePrompt(extraVars){
+            if (__aiBusy) return;
             const { pid, ctrl, ep } = getIdsForAI();
             if (!pid || !ctrl || !ep){
                 alert('ابتدا یک اندپوینت از بالای صفحه انتخاب/ایجاد کنید.');
-                return false;
+                return;
             }
+            setBusy(true, 'در حال اصلاح پرامپت...');
 
-            setBusy(true, 'در حال تولید کد توسط AI...');
-            const promptText = (document.getElementById('prompt')?.value || '').trim();
+            const provider = document.getElementById('provider')?.value;
+            const model    = document.getElementById('model')?.value;
+            const basePkg  = document.getElementById('basePackage')?.value || null;
+            const basePath = document.getElementById('basePath')?.value || null;
+            const jv       = Number(document.getElementById('javaVersion')?.value) || 21;
+            const promptEl = document.getElementById('prompt');
 
-            // 1) ذخیره پرامپت
-            try {
-                const token  = document.querySelector('meta[name="_csrf"]')?.content;
-                const header = document.querySelector('meta[name="_csrf_header"]')?.content;
-                const headers = {'Content-Type':'application/json'};
-                if (token && header) headers[header]=token;
+            // 🔧 نُرم‌سازی کلیدها به نام‌های DTO
+            const norm = extraVars || {};
+            const normalized = {
+                // اگر کاربر به مودال جواب داده، یعنی external لازم است
+                needsExternal: norm.needsExternal ?? true,
+                needsDb:       norm.needsDb ?? undefined,
 
-                await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`, {
-                    method:'POST', headers, body: JSON.stringify({ prompt: promptText })
-                });
-            } catch(_){}
+                externalBaseUrl:      norm.externalBaseUrl      ?? norm['external.baseUrl']      ?? norm.baseUrl      ?? null,
+                externalPathTemplate: norm.externalPathTemplate ?? norm['external.pathTemplate'] ?? norm.pathTemplate ?? null,
+                externalHttpMethod:   norm.externalHttpMethod   ?? norm['external.method']       ?? norm.httpMethod   ?? null,
+                externalAuthType:     norm.externalAuthType     ?? norm['external.authType']     ?? norm.authType     ?? null,
 
-            // 2) فراخوانی generate
-            const payload = {
-                projectId:   pid,
-                provider:    document.getElementById('provider')?.value,
-                model:       document.getElementById('model')?.value,
-                prompt:      promptText || null,
-                basePackage: document.getElementById('basePackage')?.value || null,
-                basePath:    document.getElementById('basePath')?.value || null,
-                javaVersion: Number(document.getElementById('javaVersion')?.value) || 17,
-                controllerName: ctrl,
-                endpointName:   ep
+                timeoutMs:        norm.timeoutMs        != null ? Number(norm.timeoutMs)        : undefined,
+                retryMaxAttempts: norm.retryMaxAttempts != null ? Number(norm.retryMaxAttempts) : undefined,
+                retryBackoffMs:   norm.retryBackoffMs   != null ? Number(norm.retryBackoffMs)   : undefined
             };
 
+            const payload = {
+                projectId: pid, provider, model,
+                prompt: (promptEl?.value || '').trim() || null,
+                basePackage: basePkg, basePath, javaVersion: jv,
+                controllerName: ctrl, endpointName: ep,
+                // کلیدهای نُرم‌سازی‌شده
+                ...normalized
+            };
+
+            try{
+                const r = await fetch('/api/ai/preflight', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if (r.status === 422){
+                    const data = await r.json().catch(()=> ({}));
+                    if (data?.questions?.length) {
+                        openPreflightModal(data.questions);
+                    } else {
+                        alert(data?.error || 'Preflight needs more inputs.');
+                    }
+                    return;
+                }
+
+                const data = await r.json().catch(()=> ({}));
+                if (!data?.ok){
+                    alert(data?.error || 'Preflight failed.');
+                    return;
+                }
+
+                if (data.prompt && promptEl) {
+                    promptEl.value = data.prompt; // پرامپت بازنویسی شده
+                }
+            }catch(err){
+                alert('خطای شبکه/پردازش در preflight: ' + (err?.message || err));
+            }finally{
+                setBusy(false);
+            }
+        }
+
+        // =========================
+        //    GENERATE (فقط تولید)
+        // =========================
+        window.aiGenerate = async function(payload){
             const rawPre  = document.getElementById('raw');
             const filesDiv= document.getElementById('files');
             if (rawPre) rawPre.textContent = '';
@@ -178,7 +307,7 @@
 
                 if (!r.ok){
                     window.generated = null;
-                    if (rawPre) rawPre.textContent = data.error || '❌ خطا در تولید';
+                    if (rawPre) rawPre.textContent = data?.error || '❌ خطا در تولید';
                     return false;
                 }
 
@@ -188,13 +317,12 @@
                 if (rawPre) rawPre.textContent = window.generated.raw || '';
                 if (typeof renderFiles === 'function') renderFiles(files);
 
-                // 3) ذخیره RAW برای این اندپوینت
+                // ذخیره RAW (best-effort)
                 try {
+                    const { pid, ctrl, ep } = getIdsForAI();
                     const token  = document.querySelector('meta[name="_csrf"]')?.content;
                     const header = document.querySelector('meta[name="_csrf_header"]')?.content;
-                    const headers = {'Content-Type':'application/json'};
-                    if (token && header) headers[header]=token;
-
+                    const headers = {'Content-Type':'application/json'}; if (token && header) headers[header]=token;
                     await fetch(`/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`, {
                         method:'POST', headers, body: JSON.stringify({ raw: window.generated.raw || '' })
                     });
@@ -202,20 +330,46 @@
 
             } catch (err){
                 window.generated = null;
+                const rawPre  = document.getElementById('raw');
                 if (rawPre) rawPre.textContent = '❌ خطای شبکه/پردازش: ' + (err?.message || err);
             } finally {
                 setBusy(false);
             }
             return false;
+        };
+
+        async function doGenerate(e){
+            if (e) e.preventDefault();
+            if (__aiBusy) return false;
+
+            const { pid, ctrl, ep } = getIdsForAI();
+            if (!pid || !ctrl || !ep){
+                alert('ابتدا یک اندپوینت از بالای صفحه انتخاب/ایجاد کنید.');
+                return false;
+            }
+
+            const provider = document.getElementById('provider')?.value;
+            const model    = document.getElementById('model')?.value;
+            const basePkg  = document.getElementById('basePackage')?.value || null;
+            const basePath = document.getElementById('basePath')?.value || null;
+            const jv       = Number(document.getElementById('javaVersion')?.value) || 21;
+
+            const promptText = (document.getElementById('prompt')?.value || '').trim();
+            const payload = {
+                projectId: pid, provider, model,
+                prompt: promptText || null,
+                basePackage: basePkg, basePath,
+                javaVersion: jv,
+                controllerName: ctrl, endpointName: ep
+            };
+
+            setBusy(true, 'در حال تولید کد توسط AI...');
+            return window.aiGenerate(payload);
         }
-
-
-
 
         async function doCommit(){
             const pid  = document.getElementById('projectId')?.value;
             const ctrl = document.getElementById('ctrlName')?.value;
-            // اگر epName ندارید و از endpointSelect استفاده می‌کنید:
             const ep   = document.getElementById('epName')?.value
                 || document.getElementById('endpointSelect')?.value;
 
@@ -233,29 +387,25 @@
             if (token && header){ headers[header] = token; headersJSON[header] = token; }
 
             setBusy(true, 'در حال ثبت فایل‌های AI روی اندپوینت...');
-
             try{
-                // 1) ذخیره‌ی پرامپت (اختیاری، اگر چیزی نوشته شده باشد)
                 if (promptText){
                     try{
                         await fetch(
                             `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/prompt`,
                             { method:'POST', headers: headersJSON, body: JSON.stringify({ prompt: promptText }) }
                         );
-                    }catch(_){ /* اگر ذخیره نشد ادامه می‌دهیم */ }
+                    }catch(_){}
                 }
 
-                // 2) ذخیره‌ی متن خام AI (اختیاری؛ اگر در window.generated موجود است)
                 if (window.generated?.raw){
                     try{
                         await fetch(
                             `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/raw`,
                             { method:'POST', headers: headersJSON, body: JSON.stringify({ raw: window.generated.raw }) }
                         );
-                    }catch(_){ /* اگر ذخیره نشد ادامه می‌دهیم */ }
+                    }catch(_){}
                 }
 
-                // 3) Commit فایل‌های AI از stash به اندپوینت
                 const url = `/wizard/${encodeURIComponent(pid)}/controllers/${encodeURIComponent(ctrl)}/endpoints/${encodeURIComponent(ep)}/ai/commit?clearStash=true`;
                 const r = await fetch(url, { method:'POST', headers });
                 const data = await r.json().catch(()=> ({}));
@@ -264,7 +414,6 @@
                     return;
                 }
 
-                // 4) رفرش صفحه با ep انتخاب‌شده تا بخش committed دیده شود
                 location.href = `/wizard/${encodeURIComponent(pid)}/controllers?ctrl=${encodeURIComponent(ctrl)}&ep=${encodeURIComponent(ep)}`;
 
             } catch(err){
@@ -273,6 +422,5 @@
                 setBusy(false);
             }
         }
-
     </script>
 </div>
