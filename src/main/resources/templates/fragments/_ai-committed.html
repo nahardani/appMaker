@@ -53,7 +53,7 @@
         async function saveAllAiFiles(){
             const projectId = document.getElementById('projectId')?.value;
             const ctrlName  = document.getElementById('ctrlName')?.value;
-            const epName    = document.getElementById('endpoint')?.value;
+            const epName    = document.getElementById('endpointSelect')?.value;
             if(!projectId || !ctrlName || !epName){ alert('کنترلر/اندپوینت معتبر نیست.'); return; }
 
             const edits = Array.from(document.querySelectorAll('.code-editor'))

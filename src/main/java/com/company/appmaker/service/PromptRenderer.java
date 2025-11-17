@@ -13,9 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static com.company.appmaker.ai.util.ControllerSkeletonFactory.normalizeControllerName;
-import static com.company.appmaker.ai.util.Utils.*;
+import static com.company.appmaker.util.Utils.*;
 
 /**
  * رندرکننده‌ی پرامپت با دو API:

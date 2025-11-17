@@ -9,9 +9,10 @@ import com.company.appmaker.ai.dto.GenerateResult;
 import com.company.appmaker.ai.preflight.PreflightModels;
 import com.company.appmaker.ai.preflight.PromptAnalyzer;
 import com.company.appmaker.ai.preflight.PromptCompleter;
-import com.company.appmaker.ai.util.CodeRepairPipeline;
+import com.company.appmaker.util.Utils;
 import com.company.appmaker.enums.PromptTarget;
 import com.company.appmaker.service.DomainPropertyService;
+import com.company.appmaker.service.PromptRenderer;
 import com.company.appmaker.service.PromptService;
 import com.company.appmaker.service.ValueObjectService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,10 +21,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.*;
-
-import static com.company.appmaker.ai.util.Utils.stripControllerSuffix;
+import static com.company.appmaker.util.Utils.camel;
+import static com.company.appmaker.util.Utils.stripControllerSuffix;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -35,6 +35,7 @@ public class AiController {
     private final CodeWriterService codeWriterService;
     private final AiDraftStore aiDraftStore;
     private final PromptService promptService;
+    private final PromptRenderer promptRenderer;
     private final DomainPropertyService domainPropertyService;
     private final ValueObjectService valueObjectService;
     private final ObjectMapper om = new ObjectMapper();
@@ -62,6 +63,9 @@ public class AiController {
             vars.put("controllerName", req.controllerName().trim());
             vars.put("endpointName", req.endpointName().trim());
             vars.put("feature", stripControllerSuffix(req.controllerName().trim()));
+            vars.put("basePackage|dotToSlash", req.basePackage().replace('.', '/'));
+            vars.put("feature|UpperCamel", camel(stripControllerSuffix(req.controllerName().trim())));
+            vars.put("endpointName|camelCase", camel(req.endpointName()));
 
             // واژگان دامنه
             vars.put("propsJson", toJson(domainPropertyService.listActiveForPrompt()));
@@ -79,7 +83,7 @@ public class AiController {
                     req.projectId(), javaVerStr, vars, seq, "ai-method-only"
             );
             if (basePrompt == null || basePrompt.isBlank()) {
-                basePrompt = promptService.composeSpringScaffold(req.projectId(), javaVerStr, vars, null);
+                basePrompt = promptService.composeSpringScaffold(req.projectId(), javaVerStr, vars, "SPRING_SCAFFOLD");
             }
 
             // 3) الحاق پرامپت ذخیره‌شده/کاربر (اختیاری)
@@ -123,7 +127,7 @@ public class AiController {
             }
 
             // 6) نرمال‌سازی
-            var deterministic = CodeRepairPipeline.run(
+            var deterministic = Utils.run(
                     files,
                     raw,
                     req.basePackage() != null ? req.basePackage() : "com.example.app",

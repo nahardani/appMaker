@@ -65,13 +65,6 @@ public class PromptService {
                                     List<PromptTarget> sequence,
                                     String category) {
         StringBuilder out = new StringBuilder();
-        out.append(
-                """
-                        You are an expert Spring Boot Java code generator.
-                        Follow each section's instructions to produce consistent, layered code.
-                        Output only Java files using the agreed file-splitting format.
-                        """.trim()
-        );
 
         int totalSections = 0;
 
@@ -83,8 +76,7 @@ public class PromptService {
                 out.append("\n\n")
                         .append("### TARGET: ").append(t.name()).append(" — NO_TEMPLATES_FOUND").append("\n")
                         .append("<!-- no active templates for this target (project/category/version filters) -->\n");
-                log.debug("composeForTargets: no templates for target={} (projectId={}, category={}, javaVersion={})",
-                        t, projectId, category, javaVersion);
+                log.debug("composeForTargets: no templates for target={} (projectId={}, category={}, javaVersion={})", t, projectId, category, javaVersion);
                 continue;
             }
 
@@ -98,6 +90,7 @@ public class PromptService {
                 // مارکرهای واضح برای هر سکشن تا مدل چیزی را قورت ندهد
                 out.append("\n\n")
                         .append("### BEGIN TARGET ").append(t.name()).append(" :: ").append(pt.getName()).append("\n")
+
                         .append(body.trim()).append("\n")
                         .append("### END TARGET ").append(t.name()).append(" :: ").append(pt.getName()).append("\n");
 

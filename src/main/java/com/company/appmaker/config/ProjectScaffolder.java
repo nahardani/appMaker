@@ -14,10 +14,6 @@ import org.springframework.stereotype.Service;
 
 import static com.company.appmaker.config.ScaffoldHelpers.toDependenciesXml;
 
-/**
- * Orchestrator: فقط APIهای سطح بالا برای اسکیفولد.
- * تمامی متدهای کمکی و تولید متن/فایل در ScaffoldHelpers قرار گرفته‌اند.
- */
 @Service
 public class ProjectScaffolder {
 

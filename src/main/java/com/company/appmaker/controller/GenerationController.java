@@ -15,7 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static com.company.appmaker.ai.util.Utils.collectCommittedAiFiles;
+import static com.company.appmaker.util.Utils.collectCommittedAiFiles;
 
 @Controller
 @RequestMapping

@@ -13,10 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-/**
- * مقداردهی هوشمند پیش‌فرض‌ها برای پروژه، بر اساس نسخهٔ جاوا و پکیج‌های انتخابی.
- * این کلاس فقط جاهای خالی را پر می‌کند (idempotent).
- */
+
 @Service
 public class DefaultProjectInitializer {
 

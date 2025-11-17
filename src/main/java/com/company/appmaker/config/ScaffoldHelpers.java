@@ -9,10 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-/**
- * تمام متدهای کمکی تولید متن/فایل/کد در این کلاس هستند.
- * ProjectScaffolder فقط orchestration انجام می‌دهد.
- */
+
 public class ScaffoldHelpers {
 
     /* ======================= IO helpers ======================= */

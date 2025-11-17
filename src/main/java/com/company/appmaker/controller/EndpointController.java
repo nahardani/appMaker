@@ -4,6 +4,7 @@ package com.company.appmaker.controller;
 import com.company.appmaker.ai.draft.AiDraftStore;
 import com.company.appmaker.ai.dto.AiArtifact;
 import com.company.appmaker.ai.dto.CodeFile;
+import com.company.appmaker.ai.dto.SaveAiRequest;
 import com.company.appmaker.model.Project;
 import com.company.appmaker.model.coctroller.ControllerDef;
 import com.company.appmaker.model.coctroller.EndpointDef;
@@ -18,9 +19,9 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import com.company.appmaker.ai.util.Utils;
+import com.company.appmaker.util.Utils;
 
-import static com.company.appmaker.ai.util.Utils.*;
+import static com.company.appmaker.util.Utils.*;
 
 @RestController
 @RequestMapping(path = "/wizard/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -347,260 +348,6 @@ public class EndpointController {
     }
 
 
-/* ============================
-   کمک‌متدها: تگ‌گذاری و استخراج
-   ============================ */
-
-    private String wrapControllerTagged(String body) {
-        // Utils.controllerStart()/controllerEnd() را استفاده کن
-        return Utils.controllerStart() + "\n" + safeTrim(body) + "\n" + Utils.controllerEnd();
-    }
-
-    private String wrapServiceTagged(String body) {
-        return Utils.serviceRegionStart() + "\n" + safeTrim(body) + "\n" + Utils.serviceRegionEnd();
-    }
-
-    private String safeTrim(String s) {
-        return (s == null) ? "" : s.trim();
-    }
-
-    /**
-     * تلاش برای استخراج بدنهٔ متد کنترلر بر اساس نام مشتق‌شده از epName
-     * یا مسیر مپینگ که epName در آن آمده است (heuristic).
-     */
-    private String extractControllerMethodByNameOrMapping(String src, String epName) {
-//        String guessedName = epName; // همان روالی که برای نام‌گذاری متدها داری
-        String m = extractMethodByName(src, epName);
-        if (m != null && !m.isBlank()) return m;
-
-        // اگر نام پیدا نشد، با annotation mappingها امتحان کن
-        // به دنبال @GetMapping("/...epName...")، @PostMapping، @PutMapping، @DeleteMapping
-        String byMapping = extractMethodByMappingContains(src, epName);
-        return safeTrim(byMapping);
-    }
-
-    private String extractServiceMethodByName(String src, String epName) {
-        String guessedName = toUpperCamel(epName);
-        return safeTrim(extractMethodByName(src, guessedName));
-    }
-
-    /**
-     * جست‌وجوی متد با اسم مشخص (public .* guessedName(...)
-     * با یک پارسر سادهٔ براکت‌محور.
-     */
-    private String extractMethodByName(String src, String methodName) {
-        if (src == null || methodName == null || methodName.isBlank()) return null;
-        String regex = "(public|protected|private)\\s+[\\w\\<\\>\\[\\]]+\\s+" + Pattern.quote(methodName) + "\\s*\\(";
-        Matcher m = Pattern.compile(regex).matcher(src);
-        if (!m.find()) return null;
-        int start = m.start();
-        // از اولین '{' بعد از امضا، تا براکت بسته متناظر
-        int braceOpen = src.indexOf('{', m.end());
-        if (braceOpen < 0) return null;
-        int end = findMatchingBrace(src, braceOpen);
-        if (end < 0) return null;
-        return src.substring(start, end + 1);
-    }
-
-    /**
-     * جست‌وجوی متدِ دارای انوتیشن مپینگ که مسیرش حاوی epName است.
-     */
-    private String extractMethodByMappingContains(String src, String epName) {
-        if (src == null || epName == null || epName.isBlank()) return null;
-        Pattern p = Pattern.compile("@(GetMapping|PostMapping|PutMapping|DeleteMapping)\\s*\\(\\s*\"([^\"]*)\"\\s*\\)");
-        Matcher m = p.matcher(src);
-        while (m.find()) {
-            String path = m.group(2);
-            if (path != null && path.toLowerCase().contains(epName.toLowerCase())) {
-                // امضای متد بعد از این annotation می‌آید
-                int annEnd = m.end();
-                // به دنبال اولین '{' بعد از امضا
-                int sigStart = src.indexOf("(", annEnd);
-                if (sigStart < 0) continue;
-                int braceOpen = src.indexOf('{', sigStart);
-                if (braceOpen < 0) continue;
-                int end = findMatchingBrace(src, braceOpen);
-                if (end < 0) continue;
-
-                // برای بازگشت تمیزتر، از آغاز خطِ امضای متد برگردان
-                int methodDeclStart = backToLineStart(src, annEnd);
-                return src.substring(methodDeclStart, end + 1);
-            }
-        }
-        return null;
-    }
-
-    private int backToLineStart(String s, int from) {
-        int i = from;
-        while (i > 0 && s.charAt(i - 1) != '\n' && s.charAt(i - 1) != '\r') i--;
-        return i;
-    }
-
-    /** پیدا کردن ‘}’ متناظر با ‘{’ با احتساب تو در تو */
-    private int findMatchingBrace(String s, int openIdx) {
-        int depth = 0;
-        for (int i = openIdx; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '{') depth++;
-            else if (c == '}') {
-                depth--;
-                if (depth == 0) return i;
-            }
-        }
-        return -1;
-    }
-
-    /** اگر محتوا فقط یک متد است همان را برگردان؛ اگر کلاس کامل است، سعی کن متد این اندپوینت را بیرون بکشی */
-    private String ensureOnlyMethod(String content, String epName) {
-        if (content == null) return "";
-        // اگر ظاهراً یک متد است (با '{' و بدون class ... { )
-        if (!content.contains(" class ") && content.contains("(") && content.contains("{") && content.contains("}")) {
-            return content.trim();
-        }
-        // در غیر این صورت سعی کن متد مناسب را بیرون بکشی
-        String m = extractControllerMethodByNameOrMapping(content, epName);
-        return (m == null || m.isBlank()) ? content.trim() : m.trim();
-    }
-
-
-
-    private boolean isControllerFile(String path, String content, String normalizedCtrl) {
-        if (path == null) path = "";
-        // مسیر درست
-        if (path.contains("/controller/")) {
-            // اگر هم‌نام کنترلر نرمال‌شده باشد → قطعی
-            if (path.endsWith("/" + normalizedCtrl + ".java")) {
-                return true;
-            }
-            // اگر AI مثلاً Customer.java ساخته ولی در controller است
-            if (content != null && content.contains("class " + stripControllerSuffix(normalizedCtrl))) {
-                return true;
-            }
-        }
-        // محتوایی
-        if (content != null) {
-            if (content.contains("@RestController") || content.contains("@Controller")) {
-                if (content.contains("class " + normalizedCtrl)) {
-                    return true;
-                }
-                // کنترلر بدون پسوند
-                if (content.contains("class " + stripControllerSuffix(normalizedCtrl))) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private boolean isServiceFile(String path, String content, String svcSimple) {
-        if (path == null) path = "";
-        if (path.contains("/service/") && path.endsWith("/" + svcSimple + ".java")) {
-            return true;
-        }
-        if (content != null && content.contains("interface " + svcSimple)) {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean isServiceImplFile(String path, String content, String implSimple) {
-        if (path == null) path = "";
-        if (path.contains("/service/") && path.endsWith("/" + implSimple + ".java")) {
-            return true;
-        }
-        if (content != null && content.contains("class " + implSimple)) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * تشخیص فایل تست تا اشتباهی توی controller مرج نشه
-     */
-    private boolean isTestFile(String path, String content) {
-        String p = (path == null) ? "" : path;
-        String c = (content == null) ? "" : content;
-
-        // 1) مسیر تست
-        if (p.contains("/src/test/java/")) return true;
-
-        // 2) اسم‌های رایج تست
-        if (p.endsWith("Test.java") || p.endsWith("Tests.java") || p.endsWith("IT.java")) return true;
-
-        // 3) محتوا
-        if (c.contains("@SpringBootTest") || c.contains("org.junit.jupiter.api.Test")) return true;
-        if (c.contains("MockMvc") || c.contains("TestRestTemplate")) return true;
-
-        return false;
-    }
-
-    /**
-     * اگر AI تست را در مسیر main ساخت، ما لااقل راهنمای UI را به test ببریم
-     */
-    private String normalizeTestPath(String originalPath, String pkgPath) {
-        if (originalPath == null || originalPath.isBlank()) {
-            return "src/test/java/" + pkgPath + "/SomeGeneratedTest.java";
-        }
-        // اگر زیر src/main بود، به src/test منتقلش کن
-        if (originalPath.startsWith("src/main/java/")) {
-            return originalPath.replace("src/main/java/", "src/test/java/");
-        }
-        // وگرنه همون
-        return originalPath;
-    }
-
-    /**
-     * نرمال‌سازی type آرتیفکت‌های AI
-     * ورودی‌های مثل controller_method یا service-interface را به 3 حالت اصلی تبدیل می‌کند
-     */
-    private String normalizeAiArtifactType(String rawType) {
-        if (rawType == null || rawType.isBlank()) return "";
-        String t = rawType.trim();
-        // یکتا کردن dash / underscore
-        t = t.replace('_', '-');
-
-        // کنترلر
-        if (t.equalsIgnoreCase("controller-method")
-                || t.equalsIgnoreCase("controller-file-method")) {
-            return "controller-method";
-        }
-
-        // سرویس (interface / signature)
-        if (t.equalsIgnoreCase("service-method")
-                || t.equalsIgnoreCase("service-interface")
-                || t.equalsIgnoreCase("service-signature")) {
-            return "service-method";
-        }
-
-        // سرویس ایمپل
-        if (t.equalsIgnoreCase("service-impl-method")
-                || t.equalsIgnoreCase("service-implementation-method")
-                || t.equalsIgnoreCase("service-impl")) {
-            return "service-impl-method";
-        }
-
-        return t; // چیزهای دیگر را برنگردانیم بهتر است بالا فیلترشان کنیم
-    }
-
-
-    private String ensureControllerClassName(String content, String normalizedCtrl) {
-        if (content == null || content.isBlank()) return content;
-        // اگر همین الان همون اسم رو دارد، دست نزن
-        if (content.contains("class " + normalizedCtrl)) {
-            return content;
-        }
-        // اگر کلاس بدون Controller است، جایگزین کن
-        String noSuffix = stripControllerSuffix(normalizedCtrl);
-        if (content.contains("class " + noSuffix)) {
-            return content.replace("class " + noSuffix, "class " + normalizedCtrl);
-        }
-        // اگر هیچ‌کدام نبود، همون رو برگردون
-        return content;
-    }
-
-
-
-    // ---------- 5) Save edits on endpoint AI files ----------
     @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/save")
     public Map<String, Object> saveAiFilesForEndpoint(@PathVariable String id,
                                                       @PathVariable String ctrlName,
@@ -630,22 +377,69 @@ public class EndpointController {
         return Map.of("ok", true);
     }
 
-    @Data
-    public static class SaveAiRequest {
-        public List<Item> files;
-        @Data
-        public static class Item {
-            public Integer index;
-            public String  path;
-            public String  content;
-        }
+
+    @GetMapping("/controllers/{ctrlName}/endpoints/{epName}/prompt")
+    @ResponseBody
+    public Map<String,Object> getEndpointPrompt(@PathVariable String id,
+                                                @PathVariable String ctrlName,
+                                                @PathVariable String epName){
+        var p = repo.findById(id).orElse(null);
+        var ep = findEndpoint(findController(p, ctrlName), epName);
+        if (p==null || ep==null) return Map.of("ok", false);
+        return Map.of("ok", true,
+                "prompt", ep.getFinalPrompt(),
+                "updatedAt", ep.getPromptUpdatedAt());
     }
 
-    // ---------- Helpers ----------
+    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/prompt")
+    @ResponseBody
+    public Map<String,Object> saveEndpointPrompt(@PathVariable String id,
+                                                 @PathVariable String ctrlName,
+                                                 @PathVariable String epName,
+                                                 @RequestBody Map<String,String> body){
+        var p = repo.findById(id).orElse(null);
+        var ep = findEndpoint(findController(p, ctrlName), epName);
+        if (p==null || ep==null) return Map.of("ok", false);
+        ep.setFinalPrompt(body.getOrDefault("prompt",""));
+        ep.setPromptUpdatedAt(java.time.Instant.now());
+        repo.save(p);
+        return Map.of("ok", true);
+    }
+
+    @GetMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/raw")
+    @ResponseBody
+    public Map<String,Object> getEndpointRaw(@PathVariable String id,
+                                             @PathVariable String ctrlName,
+                                             @PathVariable String epName){
+        var p = repo.findById(id).orElse(null);
+        var ep = findEndpoint(findController(p, ctrlName), epName);
+        if (p==null || ep==null) return Map.of("ok", false);
+        return Map.of("ok", true,
+                "raw", ep.getLastAiRaw(),
+                "updatedAt", ep.getRawUpdatedAt());
+    }
+
+    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/raw")
+    @ResponseBody
+    public Map<String,Object> saveEndpointRaw(@PathVariable String id,
+                                              @PathVariable String ctrlName,
+                                              @PathVariable String epName,
+                                              @RequestBody Map<String,String> body){
+        var p = repo.findById(id).orElse(null);
+        var ep = findEndpoint(findController(p, ctrlName), epName);
+        if (p==null || ep==null) return Map.of("ok", false);
+        ep.setLastAiRaw(body.getOrDefault("raw",""));
+        ep.setRawUpdatedAt(java.time.Instant.now());
+        repo.save(p);
+        return Map.of("ok", true);
+    }
+
+
+
+
     private Project getProjectOr404(String id) {
         return repo.findById(id).orElseThrow(() -> new NoSuchElementException("Project not found"));
     }
-
     private ControllerDef findController(Project p, String ctrlName) {
         if (p == null || p.getControllers() == null || !StringUtils.hasText(ctrlName)) return null;
         return p.getControllers().stream()
@@ -653,8 +447,6 @@ public class EndpointController {
                 .filter(c -> ctrlName.equals(c.getName()))
                 .findFirst().orElse(null);
     }
-
-    /** ensure: اگر نبود، می‌سازیم و به پروژه اضافه می‌کنیم */
     private ControllerDef ensureController(Project p, String ctrlName) {
         var c = findController(p, ctrlName);
         if (c != null) return c;
@@ -671,7 +463,6 @@ public class EndpointController {
         repo.save(p);
         return c;
     }
-
     private EndpointDef findEndpoint(ControllerDef ctrl, String epName) {
         if (ctrl == null || ctrl.getEndpoints() == null || !StringUtils.hasText(epName)) return null;
         return ctrl.getEndpoints().stream()
@@ -680,77 +471,8 @@ public class EndpointController {
                 .findFirst().orElse(null);
     }
 
-    /** نگاشت فایل‌های AI (CodeFile) به Project.GeneratedFile برای ذخیره روی endpoint */
-    private List<Project.GeneratedFile> mapToGenerated(List<CodeFile> aiFiles) {
-        if (aiFiles == null) return List.of();
-        return aiFiles.stream()
-                .filter(Objects::nonNull)
-                .map(cf -> new Project.GeneratedFile(cf.path(),
-                        cf.content() == null ? "" : cf.content()
-                ))
-                .collect(Collectors.toList());
-    }
 
 
-    // GET: خواندن پرامپت ذخیره‌شده
-    @GetMapping("/controllers/{ctrlName}/endpoints/{epName}/prompt")
-    @ResponseBody
-    public Map<String,Object> getEndpointPrompt(@PathVariable String id,
-                                                @PathVariable String ctrlName,
-                                                @PathVariable String epName){
-        var p = repo.findById(id).orElse(null);
-        var ep = findEndpoint(findController(p, ctrlName), epName);
-        if (p==null || ep==null) return Map.of("ok", false);
-        return Map.of("ok", true,
-                "prompt", ep.getFinalPrompt(),
-                "updatedAt", ep.getPromptUpdatedAt());
-    }
-
-    // POST: ذخیره/آپدیت پرامپت ذخیره‌شده
-    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/prompt")
-    @ResponseBody
-    public Map<String,Object> saveEndpointPrompt(@PathVariable String id,
-                                                 @PathVariable String ctrlName,
-                                                 @PathVariable String epName,
-                                                 @RequestBody Map<String,String> body){
-        var p = repo.findById(id).orElse(null);
-        var ep = findEndpoint(findController(p, ctrlName), epName);
-        if (p==null || ep==null) return Map.of("ok", false);
-        ep.setFinalPrompt(body.getOrDefault("prompt",""));
-        ep.setPromptUpdatedAt(java.time.Instant.now());
-        repo.save(p);
-        return Map.of("ok", true);
-    }
-
-    // GET: خواندن خروجی خام AI برای نمایش
-    @GetMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/raw")
-    @ResponseBody
-    public Map<String,Object> getEndpointRaw(@PathVariable String id,
-                                             @PathVariable String ctrlName,
-                                             @PathVariable String epName){
-        var p = repo.findById(id).orElse(null);
-        var ep = findEndpoint(findController(p, ctrlName), epName);
-        if (p==null || ep==null) return Map.of("ok", false);
-        return Map.of("ok", true,
-                "raw", ep.getLastAiRaw(),
-                "updatedAt", ep.getRawUpdatedAt());
-    }
-
-    // POST: ست‌کردن خروجی خام AI بعد از generate
-    @PostMapping("/controllers/{ctrlName}/endpoints/{epName}/ai/raw")
-    @ResponseBody
-    public Map<String,Object> saveEndpointRaw(@PathVariable String id,
-                                              @PathVariable String ctrlName,
-                                              @PathVariable String epName,
-                                              @RequestBody Map<String,String> body){
-        var p = repo.findById(id).orElse(null);
-        var ep = findEndpoint(findController(p, ctrlName), epName);
-        if (p==null || ep==null) return Map.of("ok", false);
-        ep.setLastAiRaw(body.getOrDefault("raw",""));
-        ep.setRawUpdatedAt(java.time.Instant.now());
-        repo.save(p);
-        return Map.of("ok", true);
-    }
 
 
 
