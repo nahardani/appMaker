@@ -3,6 +3,7 @@ package com.company.appmaker.controller;
 import com.company.appmaker.config.ProjectScaffolder;
 import com.company.appmaker.model.Project;
 import com.company.appmaker.repo.ProjectRepository;
+import com.company.appmaker.service.TemplateService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +24,7 @@ public class GenerationController {
     private final ProjectRepository repo;
     private final ProjectScaffolder scaffolder;
 
-    public GenerationController(ProjectRepository repo, ProjectScaffolder scaffolder) {
+    public GenerationController(ProjectRepository repo, ProjectScaffolder scaffolder ) {
         this.repo = repo;
         this.scaffolder = scaffolder;
     }

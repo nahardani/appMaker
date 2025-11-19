@@ -1,10 +1,7 @@
 package com.company.appmaker.controller;
 
 
-import com.company.appmaker.constants.PromptConstants;
-import com.company.appmaker.enums.PromptScope;
-import com.company.appmaker.enums.PromptStatus;
-import com.company.appmaker.enums.PromptTarget;
+import com.company.appmaker.enums.*;
 import com.company.appmaker.repo.PromptTemplateRepo;
 import com.company.appmaker.service.PromptRenderer;
 import com.company.appmaker.service.PromptTemplate;
@@ -118,8 +115,8 @@ public class PromptController {
     }
 
     private void addCombos(Model model){
-        model.addAttribute("javaVersions", PromptConstants.JAVA_VERSIONS);
-        model.addAttribute("categories",  PromptConstants.CATEGORIES);
+        model.addAttribute("javaVersions", JavaVersion.values());
+        model.addAttribute("categories", Category.values());
         model.addAttribute("targets",     PromptTarget.values());
         model.addAttribute("scopes",      PromptScope.values());
         model.addAttribute("statuses",    PromptStatus.values());

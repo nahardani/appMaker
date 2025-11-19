@@ -2,6 +2,7 @@ package com.company.appmaker.util;
 
 import com.company.appmaker.ai.dto.CodeFile;
 import com.company.appmaker.model.Project;
+import com.company.appmaker.service.TemplateService;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -13,6 +14,12 @@ import java.util.regex.Pattern;
  */
 public final class Utils {
 
+    private final TemplateService templateService;
+
+    public Utils(TemplateService templateService) {
+        this.templateService = templateService;
+    }
+
     private enum Kind { CONTROLLER, SERVICE_INTERFACE, SERVICE_IMPL, DTO, ENTITY, REPOSITORY, CLIENT, OTHER }
     private record Detected(Kind kind, String className) {}
     private static final Set<String> SUPPORTED_ARTIFACT_TYPES = Set.of(
@@ -20,7 +27,7 @@ public final class Utils {
     );
     public record Result(List<CodeFile> files) {}
 
-    private Utils() {}
+
 
     public static String controllerStart() { return "// <AI-ENDPOINTS-START>"; }
     public static String controllerEnd()   { return "// <AI-ENDPOINTS-END>"; }
@@ -454,6 +461,7 @@ public final class Utils {
         }
         return path.replace('\\','/');
     }
+
     private static final class ControllerSkeletonFactory {
         static String create(String basePackage, String basePath, String ctrlSimple, String svcSimple) {
             // Placeholder: your real factory implementation should be used.
@@ -703,7 +711,6 @@ public final class Utils {
         int start = skeleton.indexOf(startMarker);
         int end   = skeleton.indexOf(endMarker);
         if (start < 0 || end < 0 || end < start) {
-            // مارکر پیدا نشد، همون اسکلت رو برگردون
             return skeleton;
         }
 

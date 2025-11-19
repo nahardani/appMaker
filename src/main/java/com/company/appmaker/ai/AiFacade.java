@@ -1,4 +1,3 @@
-// com.company.appmaker.ai.AiFacade  (کلاس فعلی‌ات را به این شکل به‌روزرسانی کن)
 package com.company.appmaker.ai;
 
 import com.company.appmaker.ai.config.AiProperties;

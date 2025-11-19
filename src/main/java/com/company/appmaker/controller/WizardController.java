@@ -11,6 +11,7 @@ import com.company.appmaker.model.coctroller.*;
 import com.company.appmaker.repo.ProjectRepository;
 import com.company.appmaker.repo.PromptTemplateRepo;
 import com.company.appmaker.service.PromptTemplate;
+import com.company.appmaker.service.TemplateService;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -32,6 +33,7 @@ public class WizardController {
     private final ProjectScaffolder scaffolder;
     private final AiDraftStore aiDraftStore;
     private final PromptTemplateRepo promptRepo;
+    private final TemplateService templateService;
 
     private static final java.util.Set<String> CORE_LOCKED = java.util.Set.of(
             "config","controller","service","repository","domain","dto",
@@ -42,11 +44,12 @@ public class WizardController {
     public WizardController(ProjectRepository repo,
                             ProjectScaffolder scaffolder,
                             AiDraftStore aiDraftStore,
-                            PromptTemplateRepo promptRepo) {
+                            PromptTemplateRepo promptRepo, TemplateService templateService) {
         this.repo = repo;
         this.scaffolder = scaffolder;
         this.aiDraftStore = aiDraftStore;
         this.promptRepo = promptRepo;
+        this.templateService = templateService;
     }
 
 
@@ -306,6 +309,8 @@ public class WizardController {
         var p = repo.findById(id).orElse(null);
         if (p == null) return ResponseEntity.notFound().build();
 
+
+        templateService.getSnippet("controller","Controller",p.getJavaVersion(),"java");
         // 1) فقط فایل‌های AI کامیت‌شده در دیتابیس (از همهٔ کنترلرها)
         var committed = collectCommittedAiFiles(p);
         p.setGeneratedFiles(committed);
